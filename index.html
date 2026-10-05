@@ -1897,13 +1897,24 @@
             startEcgAnimation(v.bpm);
         }
 
+        // ==========================================
+        // 7. API BASE & PROTOCOL RESOLUTION
+        // ==========================================
+        const API_BASE = (window.location.protocol === 'file:' || !window.location.host) 
+            ? 'http://localhost:8000' 
+            : `${window.location.protocol}//${window.location.host}`;
+
+        const WS_BASE = (window.location.protocol === 'file:' || !window.location.host)
+            ? 'ws://localhost:8000'
+            : (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host;
+
         let noteDebounceTimer = null;
         function saveVictimNote(id, note) {
             localStorage.setItem(`vitalink_note_${id}`, note);
             clearTimeout(noteDebounceTimer);
             noteDebounceTimer = setTimeout(async () => {
                 try {
-                    await fetch(`/api/victims/${id}/notes`, {
+                    await fetch(`${API_BASE}/api/victims/${id}/notes`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ notes: note })
@@ -1922,7 +1933,7 @@
 
         async function updateEvacStatus(id, action) {
             try {
-                const res = await fetch(`/api/victims/${id}/action`, {
+                const res = await fetch(`${API_BASE}/api/victims/${id}/action`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action })
@@ -1939,7 +1950,7 @@
         }
 
         // ==========================================
-        // 7. QUICK SIMULATION ACTION BAR
+        // 8. QUICK SIMULATION ACTION BAR
         // ==========================================
         async function quickSimulate(type) {
             let payload = {
@@ -1978,7 +1989,7 @@
             }
 
             try {
-                await fetch('/api/telemetry', {
+                await fetch(`${API_BASE}/api/telemetry`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -1989,20 +2000,47 @@
         }
 
         // ==========================================
-        // 8. REAL-TIME WEBSOCKET STREAMING CLIENT
+        // 9. REAL-TIME REST & WEBSOCKET SYNC
         // ==========================================
+        let isWsConnected = false;
+        let pollingTimer = null;
+
+        async function fetchVictimsInitial() {
+            try {
+                const res = await fetch(`${API_BASE}/api/victims`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        victims = data;
+                        renderDashboard();
+                        const tickerText = document.getElementById('ticker-text');
+                        if (tickerText) tickerText.innerText = `Data REST API dimuat (${data.length} korban)`;
+                    }
+                }
+            } catch (err) {
+                console.warn('REST API fetch error:', err);
+            }
+        }
+
         function setupWebSocket() {
             const statusBadge = document.getElementById('conn-status');
             const tickerText = document.getElementById('ticker-text');
             const lastUpdate = document.getElementById('last-update');
 
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsHost = window.location.host || 'localhost:8000';
-            const wsUrl = `${wsProtocol}//${wsHost}/ws/telemetry`;
+            const wsUrl = `${WS_BASE}/ws/telemetry`;
+            let socket = null;
 
-            const socket = new WebSocket(wsUrl);
+            try {
+                socket = new WebSocket(wsUrl);
+            } catch (e) {
+                console.warn('WebSocket init error:', e);
+                startFallbackPolling();
+                return;
+            }
 
             socket.onopen = () => {
+                isWsConnected = true;
+                clearInterval(pollingTimer);
                 statusBadge.className = 'connection-badge conn-live';
                 statusBadge.innerHTML = '<span class="dot-pulse"></span> LIVE GATEWAY';
                 tickerText.innerText = 'Tersambung ke Live Telemetry Stream';
@@ -2023,17 +2061,31 @@
             };
 
             socket.onclose = () => {
+                isWsConnected = false;
                 statusBadge.className = 'connection-badge conn-offline';
-                statusBadge.innerText = 'OFFLINE (Reconnecting...)';
-                tickerText.innerText = 'Koneksi terputus. Mencoba rekoneksi dalam 3 detik...';
-                setTimeout(setupWebSocket, 3000);
+                statusBadge.innerText = 'OFFLINE (Fallback Polling)';
+                tickerText.innerText = 'Koneksi WebSocket terputus. Menggunakan REST API polling...';
+                startFallbackPolling();
+                setTimeout(setupWebSocket, 3500);
             };
 
             socket.onerror = () => {
+                isWsConnected = false;
                 socket.close();
             };
         }
 
+        function startFallbackPolling() {
+            clearInterval(pollingTimer);
+            pollingTimer = setInterval(async () => {
+                if (!isWsConnected) {
+                    await fetchVictimsInitial();
+                }
+            }, 2500);
+        }
+
+        // Inisialisasi awal
+        fetchVictimsInitial();
         setupWebSocket();
 
         document.addEventListener('keydown', (e) => {

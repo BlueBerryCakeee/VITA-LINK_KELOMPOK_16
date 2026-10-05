@@ -798,13 +798,21 @@
         });
 
         // ==========================================
-        // 3. PENGAMBILAN DATA DARI REST API
+        // 3. API BASE & PROTOCOL RESOLUTION
         // ==========================================
+        const API_BASE = (window.location.protocol === 'file:' || !window.location.host) 
+            ? 'http://localhost:8000' 
+            : `${window.location.protocol}//${window.location.host}`;
+
+        const WS_BASE = (window.location.protocol === 'file:' || !window.location.host)
+            ? 'ws://localhost:8000'
+            : (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host;
+
         let allVictimsData = [];
 
         async function fetchSystemStats() {
             try {
-                const res = await fetch('/api/stats');
+                const res = await fetch(`${API_BASE}/api/stats`);
                 const data = await res.json();
 
                 document.getElementById('kpi-total-victims').innerText = data.total_victims;
@@ -841,7 +849,7 @@
 
         async function loadVictimHistory(devId) {
             try {
-                const res = await fetch(`/api/history/${devId}?limit=15`);
+                const res = await fetch(`${API_BASE}/api/history/${devId}?limit=15`);
                 const rows = await res.json();
 
                 if (rows.length > 0) {
@@ -866,7 +874,7 @@
 
         async function loadAuditEvents() {
             try {
-                const res = await fetch('/api/victims');
+                const res = await fetch(`${API_BASE}/api/victims`);
                 allVictimsData = await res.json();
 
                 const tbody = document.getElementById('audit-table-body');
@@ -898,9 +906,15 @@
         // ==========================================
         function setupWebSocket() {
             const statusBadge = document.getElementById('conn-status');
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsHost = window.location.host || 'localhost:8000';
-            const socket = new WebSocket(`${wsProtocol}//${wsHost}/ws/telemetry`);
+            const wsUrl = `${WS_BASE}/ws/telemetry`;
+            let socket = null;
+
+            try {
+                socket = new WebSocket(wsUrl);
+            } catch (e) {
+                console.warn('WebSocket init error:', e);
+                return;
+            }
 
             socket.onopen = () => {
                 statusBadge.className = 'connection-badge conn-live';
@@ -922,7 +936,7 @@
             socket.onclose = () => {
                 statusBadge.className = 'connection-badge conn-offline';
                 statusBadge.innerText = 'OFFLINE';
-                setTimeout(setupWebSocket, 3000);
+                setTimeout(setupWebSocket, 3500);
             };
 
             socket.onerror = () => {
