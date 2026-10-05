@@ -1096,6 +1096,9 @@
                     <button class="btn-ctrl" onclick="focusBaseStation()" title="Fokus ke Posko Induk">
                         ⛺ Posko
                     </button>
+                    <a href="/api/export/csv" class="btn-ctrl" title="Unduh Log SQLite sebagai CSV" download>
+                        📥 CSV
+                    </a>
                 </div>
             </div>
         </div>
@@ -1142,6 +1145,7 @@
             <button class="btn-quick-action" onclick="quickSimulate('hypoxia')">🫀 Tes SpO2 Kritis</button>
             <button class="btn-quick-action" onclick="quickSimulate('fever')">🌡️ Tes Demam</button>
             <button class="btn-quick-action" onclick="quickSimulate('normal')">🔄 Normal</button>
+            <a href="/api/export/csv" class="btn-quick-action" style="text-decoration:none;" download title="Unduh Seluruh Log Telemetri Database SQLite">📥 Ekspor CSV</a>
         </div>
 
         <!-- Daftar Korban -->
@@ -1883,8 +1887,21 @@
             startEcgAnimation(v.bpm);
         }
 
+        let noteDebounceTimer = null;
         function saveVictimNote(id, note) {
             localStorage.setItem(`vitalink_note_${id}`, note);
+            clearTimeout(noteDebounceTimer);
+            noteDebounceTimer = setTimeout(async () => {
+                try {
+                    await fetch(`/api/victims/${id}/notes`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ notes: note })
+                    });
+                } catch (e) {
+                    console.warn('Gagal simpan note ke server:', e);
+                }
+            }, 600);
         }
 
         function closeDrawer() {
