@@ -3,138 +3,945 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VITA-Link | Real-Time Tactical Disaster Triage GIS</title>
+    <title>VITA-Link | Real-Time Tactical Disaster Triage GIS Command Center</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        :root {
+            --bg-base: #060913;
+            --bg-surface: #0a0f1d;
+            --bg-card: rgba(16, 24, 40, 0.75);
+            --bg-card-hover: rgba(24, 36, 60, 0.85);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(56, 189, 248, 0.25);
+            
+            --color-primary: #38bdf8;
+            --color-primary-glow: rgba(56, 189, 248, 0.35);
+            
+            --color-red: #ef4444;
+            --color-red-glow: rgba(239, 68, 68, 0.3);
+            --color-red-bg: rgba(239, 68, 68, 0.12);
+            
+            --color-yellow: #f59e0b;
+            --color-yellow-glow: rgba(245, 158, 11, 0.3);
+            --color-yellow-bg: rgba(245, 158, 11, 0.12);
+            
+            --color-green: #10b981;
+            --color-green-glow: rgba(16, 185, 129, 0.3);
+            --color-green-bg: rgba(16, 185, 129, 0.12);
+            
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            
+            --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; display: flex; height: 100vh; background-color: #0b1120; color: #f8fafc; overflow: hidden; }
-        
-        /* Sidebar Styling */
-        #sidebar { width: 440px; background: #111827; display: flex; flex-direction: column; border-right: 1px solid #1f2937; z-index: 1000; box-shadow: 4px 0 24px rgba(0,0,0,0.6); position: relative; }
-        .sidebar-header { padding: 14px 18px; border-bottom: 1px solid #1f2937; background: #0b0f19; }
-        .sidebar-header-top { display: flex; align-items: center; justify-content: space-between; }
-        .sidebar-header h1 { font-size: 1.15rem; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
-        .sidebar-header p { font-size: 0.74rem; color: #94a3b8; margin-top: 3px; }
-        
-        .header-controls { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
-        .connection-badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
-        .conn-live { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
-        .conn-offline { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
-        .dot-pulse { width: 7px; height: 7px; border-radius: 50%; background: #10b981; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.4); } 100% { opacity: 1; transform: scale(1); } }
-        
-        .btn-ctrl { background: #1f2937; border: 1px solid #374151; color: #cbd5e1; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; }
-        .btn-ctrl:hover { background: #374151; color: #ffffff; }
-        .btn-ctrl.active { background: #0284c7; border-color: #38bdf8; color: #ffffff; }
+        body {
+            font-family: var(--font-sans);
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+        }
 
-        /* Triage Summary & Interactive Filters */
-        .status-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 16px; background: #111827; border-bottom: 1px solid #1f2937; }
-        .summary-box { text-align: center; padding: 6px 4px; border-radius: 7px; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; user-select: none; }
-        .summary-box:hover { transform: translateY(-1px); filter: brightness(1.2); }
-        .summary-box.active { box-shadow: 0 0 0 2px #ffffff; }
-        .summary-box.red { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); }
-        .summary-box.red.active { background: rgba(239, 68, 68, 0.35); border-color: #ef4444; }
-        .summary-box.yellow { background: rgba(245, 158, 11, 0.15); color: #fde68a; border-color: rgba(245, 158, 11, 0.5); }
-        .summary-box.yellow.active { background: rgba(245, 158, 11, 0.35); border-color: #f59e0b; }
-        .summary-box.green { background: rgba(16, 185, 129, 0.15); color: #a7f3d0; border-color: rgba(16, 185, 129, 0.5); }
-        .summary-box.green.active { background: rgba(16, 185, 129, 0.35); border-color: #10b981; }
-        .summary-box.total { background: rgba(100, 116, 139, 0.15); color: #cbd5e1; border-color: rgba(100, 116, 139, 0.5); }
-        .summary-box.total.active { background: rgba(100, 116, 139, 0.35); border-color: #cbd5e1; }
-        .summary-num { font-size: 1.15rem; font-weight: 700; display: block; }
-        
-        /* Search Bar */
-        .search-bar-wrap { padding: 8px 16px; background: #162032; border-bottom: 1px solid #1f2937; display: flex; gap: 8px; align-items: center; }
-        .search-input { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 0.76rem; color: #ffffff; outline: none; transition: border-color 0.2s; }
-        .search-input:focus { border-color: #38bdf8; }
-        .search-input::placeholder { color: #64748b; }
-        .filter-badge { font-size: 0.68rem; color: #38bdf8; background: rgba(56,189,248,0.15); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-        .victim-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
-        
-        /* Victim Card */
-        .card { background: #1e293b; border-radius: 8px; padding: 11px 12px; cursor: pointer; transition: all 0.2s ease; border: 1px solid #334155; border-left: 5px solid #64748b; box-shadow: 0 2px 6px rgba(0,0,0,0.25); position: relative; }
-        .card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.4); background: #243248; border-color: #475569; }
-        .card.red { border-left-color: #ef4444; }
-        .card.yellow { border-left-color: #f59e0b; }
-        .card.green { border-left-color: #10b981; }
-        .card.flash { animation: cardPulseAlert 1.2s ease; }
-        @keyframes cardPulseAlert { 0% { background: #ef4444; } 50% { background: #3b1e28; } 100% { background: #1e293b; } }
-        
-        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
-        .card-title { font-weight: 700; font-size: 0.9rem; color: #ffffff; }
-        .card-subtitle { font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
-        
-        .badge { font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; text-transform: uppercase; }
-        .badge.red { background: #ef4444; color: #ffffff; }
+        /* ========================================================
+           SIDEBAR COMMAND PANEL
+           ======================================================== */
+        #sidebar {
+            width: 460px;
+            min-width: 440px;
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-subtle);
+            z-index: 1000;
+            box-shadow: 10px 0 35px rgba(0, 0, 0, 0.65);
+            position: relative;
+        }
+
+        .sidebar-header {
+            padding: 16px 20px;
+            background: linear-gradient(180deg, #0d1527 0%, #090e1a 100%);
+            border-bottom: 1px solid var(--border-subtle);
+            position: relative;
+        }
+
+        .sidebar-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+            opacity: 0.5;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px var(--color-primary-glow);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .brand-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: #ffffff;
+        }
+
+        .brand-text h1 {
+            font-size: 1.15rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #ffffff 0%, #bae6fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+        }
+
+        .brand-text span {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+
+        .connection-badge {
+            font-size: 0.68rem;
+            padding: 3px 9px;
+            border-radius: 9999px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-mono);
+            letter-spacing: 0.4px;
+            transition: all 0.3s ease;
+        }
+
+        .conn-live {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .conn-offline {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .dot-pulse {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0% { transform: scale(0.9); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.4; }
+            100% { transform: scale(0.9); opacity: 1; }
+        }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .time-box {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .time-box span { color: var(--color-primary); font-weight: 700; }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-ctrl {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+            padding: 4px 9px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-ctrl:hover {
+            background: rgba(51, 65, 85, 0.9);
+            color: #ffffff;
+            border-color: var(--color-primary);
+            transform: translateY(-1px);
+        }
+
+        .btn-ctrl.active {
+            background: rgba(2, 132, 199, 0.25);
+            border-color: var(--color-primary);
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+        }
+
+        /* Soundwave equalizer indicator */
+        .sound-wave {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            height: 10px;
+        }
+
+        .sound-bar {
+            width: 2px;
+            height: 100%;
+            background: var(--color-primary);
+            border-radius: 1px;
+            animation: soundBounce 1s infinite alternate ease-in-out;
+        }
+        .sound-bar:nth-child(2) { animation-delay: 0.2s; height: 60%; }
+        .sound-bar:nth-child(3) { animation-delay: 0.4s; height: 80%; }
+        @keyframes soundBounce { 0% { height: 20%; } 100% { height: 100%; } }
+
+        /* ========================================================
+           TRIAGE STATS SUMMARY CARDS
+           ======================================================== */
+        .status-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            padding: 12px 16px;
+            background: rgba(10, 15, 29, 0.9);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .summary-box {
+            text-align: center;
+            padding: 8px 6px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+            user-select: none;
+            backdrop-filter: blur(8px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .summary-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
+        }
+
+        .summary-num {
+            font-family: var(--font-mono);
+            font-size: 1.25rem;
+            font-weight: 800;
+            display: block;
+            line-height: 1.1;
+            margin-bottom: 2px;
+        }
+
+        .summary-box.red {
+            background: var(--color-red-bg);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+        .summary-box.red.active {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: var(--color-red);
+            box-shadow: 0 0 15px var(--color-red-glow);
+        }
+
+        .summary-box.yellow {
+            background: var(--color-yellow-bg);
+            color: #fde68a;
+            border-color: rgba(245, 158, 11, 0.25);
+        }
+        .summary-box.yellow.active {
+            background: rgba(245, 158, 11, 0.25);
+            border-color: var(--color-yellow);
+            box-shadow: 0 0 15px var(--color-yellow-glow);
+        }
+
+        .summary-box.green {
+            background: var(--color-green-bg);
+            color: #a7f3d0;
+            border-color: rgba(16, 185, 129, 0.25);
+        }
+        .summary-box.green.active {
+            background: rgba(16, 185, 129, 0.25);
+            border-color: var(--color-green);
+            box-shadow: 0 0 15px var(--color-green-glow);
+        }
+
+        .summary-box.total {
+            background: rgba(148, 163, 184, 0.08);
+            color: #cbd5e1;
+            border-color: rgba(148, 163, 184, 0.2);
+        }
+        .summary-box.total.active {
+            background: rgba(148, 163, 184, 0.2);
+            border-color: #ffffff;
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+        }
+
+        /* Search Filter Input Bar */
+        .search-bar-wrap {
+            padding: 10px 16px;
+            background: #090e18;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-input-box {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input-box svg {
+            position: absolute;
+            left: 10px;
+            width: 14px;
+            height: 14px;
+            fill: var(--text-dim);
+            pointer-events: none;
+        }
+
+        .search-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 7px;
+            padding: 7px 12px 7px 32px;
+            font-size: 0.78rem;
+            color: #ffffff;
+            outline: none;
+            transition: all 0.2s;
+            font-family: var(--font-sans);
+        }
+
+        .search-input:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 10px var(--color-primary-glow);
+            background: rgba(15, 23, 42, 1);
+        }
+
+        .search-input::placeholder { color: var(--text-dim); }
+
+        .filter-badge {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--color-primary);
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            padding: 4px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        /* ========================================================
+           VICTIM CARDS LIST
+           ======================================================== */
+        .victim-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 10px;
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid var(--border-subtle);
+            border-left: 5px solid var(--text-dim);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            position: relative;
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .card.red {
+            border-left-color: var(--color-red);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(16, 24, 40, 0.8) 100%);
+        }
+        .card.yellow {
+            border-left-color: var(--color-yellow);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, rgba(16, 24, 40, 0.8) 100%);
+        }
+        .card.green {
+            border-left-color: var(--color-green);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(16, 24, 40, 0.8) 100%);
+        }
+
+        /* Special hardware glow */
+        .card.is-hardware-card {
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            border-left: 5px solid #06b6d4;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.18);
+        }
+
+        .card.flash {
+            animation: cardPulseAlert 1.2s ease infinite alternate;
+        }
+        @keyframes cardPulseAlert {
+            0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+            100% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.9); }
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .card-subtitle {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 3px;
+        }
+
+        .hw-tag {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            color: #ffffff;
+            font-size: 0.62rem;
+            font-weight: 800;
+            padding: 1px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.4px;
+        }
+
+        .gps-tag {
+            font-size: 0.62rem;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+        .gps-fix {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        .gps-search {
+            background: rgba(148, 163, 184, 0.2);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .badge {
+            font-size: 0.65rem;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge.red { background: #ef4444; color: #ffffff; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
         .badge.yellow { background: #f59e0b; color: #000000; }
         .badge.green { background: #10b981; color: #ffffff; }
-        
-        .tag-evac { font-size: 0.63rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 3px; }
+
+        .tag-evac {
+            font-size: 0.63rem;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.4px;
+        }
         .tag-dispatched { background: #d97706; color: #ffffff; }
         .tag-evacuated { background: #059669; color: #ffffff; }
 
-        .distance-info { font-size: 0.7rem; color: #38bdf8; display: flex; align-items: center; gap: 4px; margin-bottom: 6px; font-weight: 600; }
+        .distance-info {
+            font-size: 0.72rem;
+            color: var(--color-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
 
-        /* Vital Metrics Grid */
-        .vital-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 0.75rem; background: rgba(11, 15, 25, 0.6); padding: 6px; border-radius: 6px; margin-bottom: 6px; text-align: center; }
-        .vital-cell { padding: 3px 2px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
-        .vital-label { font-size: 0.62rem; color: #94a3b8; }
-        .vital-val { font-weight: 700; font-size: 0.78rem; }
-        
-        .val-red { color: #f87171 !important; }
+        /* Vital Metrics High-Tech Grid */
+        .vital-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            background: rgba(6, 10, 20, 0.85);
+            padding: 8px 6px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: center;
+        }
+
+        .vital-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 2px;
+        }
+
+        .vital-label {
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-dim);
+            font-weight: 700;
+        }
+
+        .vital-val {
+            font-family: var(--font-mono);
+            font-weight: 800;
+            font-size: 0.84rem;
+        }
+
+        .val-red { color: #f87171 !important; text-shadow: 0 0 8px rgba(248, 113, 113, 0.4); }
         .val-yellow { color: #fbbf24 !important; }
         .val-green { color: #34d399 !important; }
-        .val-gray { color: #94a3b8 !important; font-size: 0.68rem; }
-        
+        .val-gray { color: var(--text-dim) !important; font-size: 0.72rem; }
+
         /* Cautions Box */
-        .caution-box { padding: 5px 8px; border-radius: 5px; font-size: 0.68rem; line-height: 1.3; display: flex; flex-direction: column; gap: 2px; font-weight: 600; }
-        .caution-box.red { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; }
-        .caution-box.yellow { background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fde68a; }
-        .caution-box.green { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16,185,129,0.3); color: #a7f3d0; }
-        
-        .card-actions { margin-top: 6px; display: flex; justify-content: flex-end; gap: 6px; }
-        .btn-card-detail { background: #334155; border: 1px solid #475569; color: #cbd5e1; font-size: 0.68rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
-        .btn-card-detail:hover { background: #0284c7; color: #ffffff; border-color: #38bdf8; }
+        .caution-box {
+            padding: 8px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            line-height: 1.4;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
 
-        /* Map Container & Floating Siren Banner */
-        #map-container { flex: 1; position: relative; height: 100vh; }
+        .caution-box.red {
+            background: rgba(239, 68, 68, 0.12);
+            border-color: rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+        .caution-box.yellow {
+            background: rgba(245, 158, 11, 0.12);
+            border-color: rgba(245, 158, 11, 0.35);
+            color: #fde68a;
+        }
+        .caution-box.green {
+            background: rgba(16, 185, 129, 0.08);
+            border-color: rgba(16, 185, 129, 0.2);
+            color: #a7f3d0;
+        }
+
+        .card-actions {
+            margin-top: 8px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+        }
+
+        .btn-card-detail {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-card-detail:hover {
+            background: var(--color-primary);
+            color: #ffffff;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 10px var(--color-primary-glow);
+        }
+
+        .live-ticker {
+            padding: 10px 16px;
+            background: #060a14;
+            border-top: 1px solid var(--border-subtle);
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+        }
+
+        /* ========================================================
+           MAP CONTAINER & FLOATING WIDGETS
+           ======================================================== */
+        #map-container {
+            flex: 1;
+            position: relative;
+            height: 100vh;
+            background: #020617;
+        }
+
         #map { width: 100%; height: 100%; }
-        
-        .floating-siren-banner { position: absolute; top: 14px; left: 38%; transform: translateX(-50%); max-width: calc(100% - 340px); z-index: 1500; background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%); color: #ffffff; padding: 8px 14px; border-radius: 8px; box-shadow: 0 8px 25px rgba(220, 38, 38, 0.45); border: 1px solid #fca5a5; display: none; align-items: center; gap: 10px; font-size: 0.8rem; font-weight: 700; animation: bannerPulse 1s infinite alternate; white-space: nowrap; }
-        @keyframes bannerPulse { 0% { box-shadow: 0 0 8px rgba(220, 38, 38, 0.5); } 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.85); } }
+
+        /* Floating Emergency Siren Banner */
+        .floating-siren-banner {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 80%;
+            z-index: 1500;
+            background: linear-gradient(135deg, rgba(185, 28, 28, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+            color: #ffffff;
+            padding: 10px 18px;
+            border-radius: 9999px;
+            box-shadow: 0 10px 30px rgba(220, 38, 38, 0.5), 0 0 0 1px rgba(254, 202, 202, 0.4);
+            display: none;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            backdrop-filter: blur(8px);
+            animation: sirenBannerGlow 1.2s infinite alternate;
+        }
+
+        @keyframes sirenBannerGlow {
+            0% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.5); }
+            100% { box-shadow: 0 0 35px rgba(220, 38, 38, 0.9); }
+        }
+
         .floating-siren-banner.active { display: flex; }
-        .badge-darurat { background: #ffffff; color: #991b1b; font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; }
-        .btn-banner-focus { background: #ffffff; color: #991b1b; border: none; padding: 4px 10px; border-radius: 5px; font-weight: 800; font-size: 0.72rem; cursor: pointer; transition: transform 0.2s; }
-        .btn-banner-focus:hover { transform: scale(1.05); }
 
-        /* Tactical Dark Map Tile Filter (Bebas API Key & Tanpa Watermark) */
-        .tactical-dark-tile { filter: invert(100%) hue-rotate(190deg) brightness(85%) contrast(115%) saturate(40%); }
+        .badge-darurat {
+            background: #ffffff;
+            color: #991b1b;
+            font-size: 0.65rem;
+            font-weight: 900;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            letter-spacing: 0.8px;
+        }
 
-        /* Map Layer Switcher Control */
-        .map-layer-switch { position: absolute; top: 14px; right: 14px; z-index: 1500; background: rgba(15, 23, 42, 0.9); border: 1px solid #334155; border-radius: 8px; padding: 6px; display: flex; gap: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
-        .btn-map-mode { background: #1e293b; border: 1px solid #334155; color: #94a3b8; font-size: 0.7rem; font-weight: 600; padding: 4px 8px; border-radius: 5px; cursor: pointer; transition: all 0.2s; }
-        .btn-map-mode.active { background: #0284c7; color: #ffffff; border-color: #38bdf8; }
+        .btn-banner-focus {
+            background: #ffffff;
+            color: #991b1b;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-weight: 800;
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
 
-        .live-ticker { padding: 8px 16px; background: #0b0f19; border-top: 1px solid #1f2937; font-size: 0.72rem; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; }
+        .btn-banner-focus:hover {
+            transform: scale(1.08);
+            background: #fef2f2;
+        }
 
-        /* Patient Detail Modal Drawer */
-        .drawer-overlay { position: fixed; inset: 0; background: rgba(11, 15, 25, 0.7); backdrop-filter: blur(4px); display: none; justify-content: flex-end; z-index: 2100; }
-        .drawer-overlay.active { display: flex; animation: fadeIn 0.2s; }
-        .drawer-panel { width: 380px; max-width: 90vw; background: #111827; height: 100%; border-left: 1px solid #1f2937; padding: 20px; display: flex; flex-direction: column; gap: 16px; box-shadow: -10px 0 30px rgba(0,0,0,0.6); overflow-y: auto; }
-        .drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2937; padding-bottom: 12px; }
-        .drawer-header h2 { font-size: 1.1rem; color: #38bdf8; font-weight: 700; margin: 0; }
-        .drawer-close { background: transparent; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer; }
-        .drawer-close:hover { color: #ef4444; }
-        .btn-evac { padding: 8px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
-        .btn-evac-dispatch { background: #d97706; color: #ffffff; }
+        /* Map Layer Switcher */
+        .map-layer-switch {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            z-index: 1500;
+            background: rgba(10, 15, 29, 0.85);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 5px;
+            display: flex;
+            gap: 4px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .btn-map-mode {
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-map-mode:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .btn-map-mode.active {
+            background: #0284c7;
+            color: #ffffff;
+            box-shadow: 0 0 10px rgba(2, 132, 199, 0.5);
+        }
+
+        /* Tactical Dark Map Tile Filter */
+        .tactical-dark-tile {
+            filter: invert(100%) hue-rotate(195deg) brightness(85%) contrast(120%) saturate(30%);
+        }
+
+        /* Pulse Shockwave Marker CSS */
+        .shockwave-marker {
+            position: relative;
+        }
+
+        .shockwave-core {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 2;
+        }
+
+        .shockwave-ripple {
+            position: absolute;
+            top: -11px;
+            left: -11px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+            animation: rippleEffect 2s infinite ease-out;
+            z-index: 1;
+        }
+
+        @keyframes rippleEffect {
+            0% { transform: scale(0.3); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
+
+        /* Base Station Radar Animation */
+        .radar-pulse-ring {
+            border: 2px dashed #0284c7;
+            border-radius: 50%;
+            animation: radarRotate 12s linear infinite;
+        }
+        @keyframes radarRotate { 100% { transform: rotate(360deg); } }
+
+        /* ========================================================
+           PATIENT DETAIL SLIDE-OVER DRAWER
+           ======================================================== */
+        .drawer-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 7, 15, 0.7);
+            backdrop-filter: blur(6px);
+            display: none;
+            justify-content: flex-end;
+            z-index: 2100;
+        }
+
+        .drawer-overlay.active {
+            display: flex;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        .drawer-panel {
+            width: 420px;
+            max-width: 90vw;
+            background: #090f1d;
+            height: 100%;
+            border-left: 1px solid var(--border-subtle);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            box-shadow: -15px 0 45px rgba(0, 0, 0, 0.75);
+            overflow-y: auto;
+            animation: slideLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideLeft {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 16px;
+        }
+
+        .drawer-header h2 {
+            font-size: 1.15rem;
+            color: #ffffff;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .drawer-close {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .drawer-close:hover {
+            color: var(--color-red);
+            border-color: var(--color-red);
+            background: var(--color-red-bg);
+        }
+
+        .btn-evac {
+            padding: 10px 14px;
+            border-radius: 7px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-evac:hover { transform: translateY(-1px); }
+
+        .btn-evac-dispatch {
+            background: #d97706;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+        }
         .btn-evac-dispatch:hover { background: #b45309; }
-        .btn-evac-done { background: #059669; color: #ffffff; }
+
+        .btn-evac-done {
+            background: #059669;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+        }
         .btn-evac-done:hover { background: #047857; }
-        .btn-evac-reset { background: #374151; color: #cbd5e1; }
-        .btn-evac-reset:hover { background: #4b5563; }
 
+        .btn-evac-reset {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-muted);
+        }
+        .btn-evac-reset:hover { background: #334155; color: #ffffff; }
 
+        /* Custom Leaflet Dark Popup */
+        .leaflet-popup-content-wrapper {
+            background: rgba(10, 15, 29, 0.95) !important;
+            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+            border-radius: 10px !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+            backdrop-filter: blur(10px) !important;
+            color: #ffffff !important;
+            padding: 0 !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 12px 14px !important;
+            line-height: 1.4 !important;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(10, 15, 29, 0.95) !important;
+            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        }
     </style>
 </head>
 <body>
@@ -142,47 +949,69 @@
     <!-- Sidebar Operasi Posko -->
     <div id="sidebar">
         <div class="sidebar-header">
-            <div class="sidebar-header-top">
-                <h1><span>VITA-Link GIS</span></h1>
+            <div class="brand-container">
+                <div class="brand-title">
+                    <div class="brand-icon">
+                        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    </div>
+                    <div class="brand-text">
+                        <h1>VITA-Link GIS</h1>
+                        <span>Tactical Triage Ops</span>
+                    </div>
+                </div>
                 <span id="conn-status" class="connection-badge conn-offline">Offline</span>
             </div>
-            <p>Sistem Pemantau Cerdas LoRa • Triage Medis & Evakuasi SAR</p>
-            <div class="header-controls">
-                <button id="btn-audio-toggle" class="btn-ctrl active" onclick="toggleAudioAlarm()">
-                    <span id="audio-text">Sirine: ON</span>
-                </button>
-                <button class="btn-ctrl" onclick="focusBaseStation()">
-                    ⛺ Posko Induk
-                </button>
+
+            <div class="header-meta">
+                <div class="time-box">
+                    <span>UTC+7</span>
+                    <div id="live-clock">--:--:-- WIB</div>
+                </div>
+                <div class="header-actions">
+                    <button id="btn-audio-toggle" class="btn-ctrl active" onclick="toggleAudioAlarm()" title="Nyalakan / Matikan Sirine Audio">
+                        <div class="sound-wave" id="sound-indicator">
+                            <div class="sound-bar"></div>
+                            <div class="sound-bar"></div>
+                            <div class="sound-bar"></div>
+                        </div>
+                        <span id="audio-text">Sirine ON</span>
+                    </button>
+                    <button class="btn-ctrl" onclick="focusBaseStation()" title="Fokus ke Posko Induk">
+                        ⛺ Posko
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- Filter Interaktif Triage -->
         <div class="status-summary">
-            <div class="summary-box red" id="flt-red" onclick="setTriageFilter('red')">
+            <div class="summary-box red" id="flt-red" onclick="setTriageFilter('red')" title="Filter Korban Kritis">
                 <span class="summary-num" id="cnt-red">0</span>Kritis
             </div>
-            <div class="summary-box yellow" id="flt-yellow" onclick="setTriageFilter('yellow')">
+            <div class="summary-box yellow" id="flt-yellow" onclick="setTriageFilter('yellow')" title="Filter Korban Sedang">
                 <span class="summary-num" id="cnt-yellow">0</span>Sedang
             </div>
-            <div class="summary-box green" id="flt-green" onclick="setTriageFilter('green')">
+            <div class="summary-box green" id="flt-green" onclick="setTriageFilter('green')" title="Filter Korban Stabil">
                 <span class="summary-num" id="cnt-green">0</span>Stabil
             </div>
-            <div class="summary-box total active" id="flt-all" onclick="setTriageFilter('all')">
+            <div class="summary-box total active" id="flt-all" onclick="setTriageFilter('all')" title="Tampilkan Semua Korban">
                 <span class="summary-num" id="cnt-total">0</span>Semua
             </div>
         </div>
 
         <!-- Search Bar -->
         <div class="search-bar-wrap">
-            <input type="text" id="search-input" class="search-input" placeholder="Cari nama korban atau ID gelang..." oninput="handleSearch(this.value)" />
+            <div class="search-input-box">
+                <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="search-input" class="search-input" placeholder="Cari nama korban atau ID perangkat..." oninput="handleSearch(this.value)" />
+            </div>
             <span class="filter-badge" id="filter-status-text">Semua Korban</span>
         </div>
-
 
         <!-- Daftar Korban -->
         <div class="victim-list" id="victim-list"></div>
 
+        <!-- Live Status Ticker -->
         <div class="live-ticker">
             <span id="ticker-text">Menghubungkan ke WebSocket Gateway...</span>
             <span id="last-update">-</span>
@@ -201,8 +1030,8 @@
         <!-- Map Layer Switcher -->
         <div class="map-layer-switch">
             <button class="btn-map-mode active" id="btn-tile-dark" onclick="setMapTile('dark')">Tactical Dark</button>
-            <button class="btn-map-mode" id="btn-tile-osm" onclick="setMapTile('osm')">Standard</button>
-            <button class="btn-map-mode" id="btn-tile-sat" onclick="setMapTile('satellite')">Satelit</button>
+            <button class="btn-map-mode" id="btn-tile-osm" onclick="setMapTile('osm')">Street</button>
+            <button class="btn-map-mode" id="btn-tile-sat" onclick="setMapTile('satellite')">Satellite</button>
         </div>
 
         <div id="map"></div>
@@ -212,7 +1041,9 @@
     <div id="drawer-modal" class="drawer-overlay" onclick="if(event.target === this) closeDrawer()">
         <div class="drawer-panel">
             <div class="drawer-header">
-                <h2>Detail Korban & Aksi</h2>
+                <h2>
+                    <span style="color: var(--color-primary);">📋</span> Detail Korban & Aksi SAR
+                </h2>
                 <button class="drawer-close" onclick="closeDrawer()">&times;</button>
             </div>
             <div id="drawer-content" style="display: flex; flex-direction: column; gap: 14px;">
@@ -221,13 +1052,25 @@
         </div>
     </div>
 
-
-
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // ==========================================
-        // KOORDINAT POSKO BASE STATION & PETA
+        // 1. JAM OPERASIONAL REALTIME
+        // ==========================================
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            const secs = String(now.getSeconds()).padStart(2, '0');
+            const el = document.getElementById('live-clock');
+            if (el) el.innerText = `${hours}:${mins}:${secs} WIB`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ==========================================
+        // 2. KOORDINAT POSKO BASE STATION & PETA
         // ==========================================
         const BASE_STATION = {
             name: "Posko Induk SAR VITA-Link (Gateway LoRa)",
@@ -235,17 +1078,19 @@
             lng: 106.8270
         };
 
-        const map = L.map('map').setView([BASE_STATION.lat, BASE_STATION.lng], 16);
+        const map = L.map('map', {
+            zoomControl: true
+        }).setView([BASE_STATION.lat, BASE_STATION.lng], 16);
 
-        // Tile Layers (Bebas API Key & Tanpa Watermark)
+        // Tile Layers
         const tileLayers = {
             dark: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors | VITA-Link FTUI',
+                attribution: '© OpenStreetMap | VITA-Link FTUI',
                 maxZoom: 19,
                 className: 'tactical-dark-tile'
             }),
             osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors | VITA-Link FTUI',
+                attribution: '© OpenStreetMap | VITA-Link FTUI',
                 maxZoom: 19
             }),
             satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -269,29 +1114,33 @@
 
         // Marker Posko Induk SAR
         const baseIcon = L.divIcon({
-            html: `<div style="background:#0284c7; border:2px solid #ffffff; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.1rem; box-shadow:0 0 15px rgba(2,132,199,0.8);">⛺</div>`,
+            html: `
+                <div style="background:linear-gradient(135deg,#0284c7,#0369a1); border:2px solid #ffffff; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.15rem; box-shadow:0 0 20px rgba(2,132,199,0.9);">
+                    ⛺
+                </div>
+            `,
             className: 'base-station-marker',
-            iconSize: [34, 34],
-            iconAnchor: [17, 17]
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
         });
 
         const baseMarker = L.marker([BASE_STATION.lat, BASE_STATION.lng], { icon: baseIcon }).addTo(map);
         baseMarker.bindPopup(`
-            <div style="color:#0f172a; font-size:0.85rem;">
-                <b style="font-size:0.95rem; color:#0284c7;">⛺ ${BASE_STATION.name}</b><br>
-                <span>Pusat Komando & Gateway Receiver LoRa 915 MHz</span><br>
-                <span style="font-size:0.75rem; color:#64748b;">Koordinat: ${BASE_STATION.lat}, ${BASE_STATION.lng}</span>
+            <div style="font-size:0.85rem; color:#f8fafc; font-family:var(--font-sans); padding:4px;">
+                <div style="font-size:0.95rem; font-weight:800; color:#38bdf8; margin-bottom:4px;">⛺ ${BASE_STATION.name}</div>
+                <div style="font-size:0.75rem; color:#cbd5e1; margin-bottom:6px;">Pusat Komando & Gateway Receiver LoRa 915 MHz</div>
+                <div style="font-size:0.72rem; color:#94a3b8; font-family:var(--font-mono);">Koordinat: ${BASE_STATION.lat}, ${BASE_STATION.lng}</div>
             </div>
         `);
 
-        // Lingkaran Jangkauan LoRa (Radius 1000m)
+        // Radius LoRa Coverage (1000m)
         const loraRadius = L.circle([BASE_STATION.lat, BASE_STATION.lng], {
             radius: 1000,
             color: '#38bdf8',
             weight: 1.5,
             dashArray: '6, 6',
             fillColor: '#0284c7',
-            fillOpacity: 0.07
+            fillOpacity: 0.05
         }).addTo(map);
 
         function focusBaseStation() {
@@ -300,7 +1149,7 @@
         }
 
         // ==========================================
-        // SISTEM AUDIO ALARM (WEB AUDIO API SYNTHESIZER)
+        // 3. AUDIO SIRINE ALERT SYNTHESIZER
         // ==========================================
         let audioAlarmEnabled = localStorage.getItem('vitalink_audio_alarm') !== 'false';
         let audioCtx = null;
@@ -309,12 +1158,15 @@
         function updateAudioUI() {
             const btn = document.getElementById('btn-audio-toggle');
             const text = document.getElementById('audio-text');
+            const soundIndicator = document.getElementById('sound-indicator');
             if (audioAlarmEnabled) {
                 btn.className = 'btn-ctrl active';
-                text.innerText = 'Sirine: ON';
+                text.innerText = 'Sirine ON';
+                if (soundIndicator) soundIndicator.style.display = 'inline-flex';
             } else {
                 btn.className = 'btn-ctrl';
-                text.innerText = 'Sirine: MUTE';
+                text.innerText = 'Sirine MUTE';
+                if (soundIndicator) soundIndicator.style.display = 'none';
             }
         }
         updateAudioUI();
@@ -337,7 +1189,6 @@
                 const gain = audioCtx.createGain();
 
                 osc.type = 'sine';
-                // Nada sirine dual-tone 880Hz -> 587Hz
                 osc.frequency.setValueAtTime(880, now);
                 osc.frequency.setValueAtTime(587, now + 0.15);
                 osc.frequency.setValueAtTime(880, now + 0.3);
@@ -356,15 +1207,15 @@
         }
 
         // ==========================================
-        // STATE & FILTER LOGIC
+        // 4. DATA STATE & TRIAGE LOGIC
         // ==========================================
         const colorMap = { red: '#ef4444', yellow: '#f59e0b', green: '#10b981', black: '#64748b' };
         let victims = [];
         const markers = {};
+        const polylines = {};
         let activeFilter = 'all';
         let searchQuery = '';
 
-        // Hitung jarak Haversine (meter) & Arah Mata Angin
         function calculateDistanceAndBearing(lat1, lon1, lat2, lon2) {
             const R = 6371e3;
             const phi1 = lat1 * Math.PI / 180;
@@ -378,7 +1229,6 @@
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             const distance = Math.round(R * c);
 
-            // Bearing
             const y = Math.sin(deltaLambda) * Math.cos(phi2);
             const x = Math.cos(phi1) * Math.sin(phi2) -
                       Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
@@ -412,7 +1262,6 @@
             renderDashboard();
         }
 
-        // Evaluasi tanda vital per parameter
         function evaluateMetrics(v) {
             let spo2Class = 'val-green';
             let bpmClass = 'val-green';
@@ -431,10 +1280,10 @@
             if (isHw && (!maxOk || v.spo2 === 0 || v.spo2 === null)) {
                 spo2Class = 'val-gray';
                 spo2Text = 'Belum Terbaca';
-                cautions.push('Sensor MAX30102: Belum terpasang di pin 21/22');
+                cautions.push('Sensor MAX30102: Menunggu inisialisasi I2C');
             } else if (isHw && !fingerOk) {
                 spo2Class = 'val-yellow';
-                spo2Text = 'Tempelkan Jari';
+                spo2Text = 'Tempel Jari';
                 cautions.push('Sensor MAX30102: Tempelkan jari di kaca sensor');
             } else if (v.spo2 < 85) {
                 spo2Class = 'val-red';
@@ -449,11 +1298,9 @@
             if (isHw && (!maxOk || v.bpm === 0 || v.bpm === null)) {
                 bpmClass = 'val-gray';
                 bpmText = 'Belum Terbaca';
-                cautions.push('Sensor MAX30102: Nadi belum terbaca');
             } else if (isHw && !fingerOk) {
                 bpmClass = 'val-yellow';
-                bpmText = 'Tempelkan Jari';
-                cautions.push('Sensor MAX30102: Menunggu deteksi denyut nadi');
+                bpmText = 'Tempel Jari';
             } else if (v.bpm > 130) {
                 bpmClass = 'val-red';
                 cautions.push(`Takikardia Berat (${v.bpm} BPM > 130)`);
@@ -470,7 +1317,7 @@
             if (isHw && !mlxOk && !isManualTemp && (v.temp === 0 || v.temp === 36.6)) {
                 tempClass = 'val-gray';
                 tempText = 'Belum Terbaca';
-                cautions.push('Sensor Suhu MLX90614: Belum aktif');
+                cautions.push('Sensor Suhu MLX90614: Menunggu data');
             } else if (isHw && isManualTemp) {
                 tempText = v.temp + ' °C (Manual)';
             } else if (v.temp > 39.0) {
@@ -488,12 +1335,12 @@
             if (v.manDown) {
                 cautions.push(`ALARM JATUH: Man-Down / Benturan Keras Terdeteksi!`);
             } else if (isHw && !adxlOk) {
-                cautions.push(`Akselerometer ADXL345: Belum terdeteksi di pin 21/22`);
+                cautions.push(`Akselerometer ADXL345: Belum terhubung`);
             }
 
             // 5. GPS
             if (isHw && !v.gps_fixed) {
-                cautions.push(`GPS NEO-6M: Menunggu 3D lock satelit`);
+                cautions.push(`GPS NEO-6M: Menunggu kunci satelit (Outdoors)`);
             }
 
             if (cautions.length === 0) {
@@ -504,7 +1351,7 @@
         }
 
         // ==========================================
-        // RENDER DASHBOARD & FILTERING
+        // 5. RENDER DASHBOARD & INTERAKTIF PETA
         // ==========================================
         function renderDashboard(flashDeviceId = null) {
             const listContainer = document.getElementById('victim-list');
@@ -523,7 +1370,7 @@
                 }
             });
 
-            // Update Emergency Siren Banner
+            // Update Floating Emergency Siren Banner
             const sirenBanner = document.getElementById('floating-siren');
             if (emergencyVictim) {
                 sirenBanner.classList.add('active');
@@ -550,27 +1397,37 @@
                 return matchFilter && matchSearch;
             });
 
-            // Sinkronisasi Marker Peta
+            // Sinkronisasi Marker Peta dengan Efek Shockwave
             victims.forEach(v => {
                 const isVisible = activeFilter === 'all' || v.status === activeFilter;
                 const isSearchMatch = searchQuery === '' ||
                     v.name.toLowerCase().includes(searchQuery) ||
                     v.id.toLowerCase().includes(searchQuery);
 
-                if (!markers[v.id]) {
-                    const marker = L.circleMarker([v.lat, v.lng], {
-                        color: '#ffffff',
-                        weight: 2,
-                        fillColor: colorMap[v.status] || '#64748b',
-                        fillOpacity: 0.9,
-                        radius: 12
-                    }).addTo(map);
+                const markerColor = colorMap[v.status] || '#64748b';
+                const isEmergency = v.status === 'red' || v.manDown;
 
+                const customMarkerHtml = `
+                    <div class="shockwave-marker">
+                        <div class="shockwave-core" style="background:${markerColor};"></div>
+                        ${isEmergency ? `<div class="shockwave-ripple" style="border:2px solid ${markerColor};"></div>` : ''}
+                    </div>
+                `;
+
+                const markerIcon = L.divIcon({
+                    html: customMarkerHtml,
+                    className: 'custom-triage-pin',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+
+                if (!markers[v.id]) {
+                    const marker = L.marker([v.lat, v.lng], { icon: markerIcon }).addTo(map);
                     marker.on('click', () => openDrawer(v.id));
                     markers[v.id] = marker;
                 } else {
                     markers[v.id].setLatLng([v.lat, v.lng]);
-                    markers[v.id].setStyle({ fillColor: colorMap[v.status] || '#64748b' });
+                    markers[v.id].setIcon(markerIcon);
                 }
 
                 if (isVisible && isSearchMatch) {
@@ -579,26 +1436,50 @@
                     if (map.hasLayer(markers[v.id])) map.removeLayer(markers[v.id]);
                 }
 
+                // Polyline penghubung dari Posko ke Korban
+                if (v.status === 'red' || v.is_hardware) {
+                    if (!polylines[v.id]) {
+                        polylines[v.id] = L.polyline([[BASE_STATION.lat, BASE_STATION.lng], [v.lat, v.lng]], {
+                            color: markerColor,
+                            weight: 1.5,
+                            dashArray: '4, 4',
+                            opacity: 0.6
+                        }).addTo(map);
+                    } else {
+                        polylines[v.id].setLatLngs([[BASE_STATION.lat, BASE_STATION.lng], [v.lat, v.lng]]);
+                        polylines[v.id].setStyle({ color: markerColor });
+                    }
+                } else if (polylines[v.id]) {
+                    map.removeLayer(polylines[v.id]);
+                    delete polylines[v.id];
+                }
+
                 const distInfo = calculateDistanceAndBearing(BASE_STATION.lat, BASE_STATION.lng, v.lat, v.lng);
                 const evalRes = evaluateMetrics(v);
 
                 markers[v.id].bindPopup(`
-                    <div style="font-size:0.85rem; color:#1e293b; min-width:220px;">
-                        <b style="font-size:1rem;">${v.name}</b> (${v.id})<br>
-                        <span style="display:inline-block; margin:4px 0; font-weight:bold; color:${colorMap[v.status]};">${v.statusText}</span><br>
-                        <span style="font-size:0.75rem; color:#0284c7; font-weight:600;">Jarak: ${distInfo.distance} m ke ${distInfo.direction} dari Posko</span><br>
-                        SpO2: <b class="${evalRes.spo2Class}">${evalRes.spo2Text}</b> | Nadi: <b class="${evalRes.bpmClass}">${evalRes.bpmText}</b><br>
-                        Suhu: <b class="${evalRes.tempClass}">${evalRes.tempText}</b> | LoRa: <b>${v.rssi} dBm</b><br>
-                        <hr style="margin:6px 0; border:0; border-top:1px solid #cbd5e1;">
-                        <button onclick="openDrawer('${v.id}')" style="width:100%; padding:5px; background:#0284c7; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-size:0.75rem;">Detail & Aksi</button>
+                    <div style="font-size:0.85rem; color:#f8fafc; font-family:var(--font-sans); min-width:240px; padding:4px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <b style="font-size:1rem; color:#fff;">${v.name}</b>
+                            <span style="background:${markerColor}; color:#fff; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:4px;">${v.status.toUpperCase()}</span>
+                        </div>
+                        <div style="font-size:0.75rem; color:#94a3b8; font-family:var(--font-mono); margin-bottom:6px;">ID: ${v.id} • ${v.device || 'LoRa Node'}</div>
+                        <div style="font-size:0.75rem; color:#38bdf8; font-weight:600; margin-bottom:6px; font-family:var(--font-mono);">
+                            📍 Jarak: ${distInfo.distance} m (${distInfo.direction}) dari Posko
+                        </div>
+                        <div style="background:rgba(255,255,255,0.06); padding:6px; border-radius:6px; font-family:var(--font-mono); font-size:0.75rem; margin-bottom:8px;">
+                            SpO2: <b class="${evalRes.spo2Class}">${evalRes.spo2Text}</b> | Nadi: <b class="${evalRes.bpmClass}">${evalRes.bpmText}</b><br>
+                            Suhu: <b class="${evalRes.tempClass}">${evalRes.tempText}</b> | RSSI: <b>${v.rssi} dBm</b>
+                        </div>
+                        <button onclick="openDrawer('${v.id}')" style="width:100%; padding:6px; background:#0284c7; color:#fff; border:none; border-radius:5px; font-weight:700; cursor:pointer; font-size:0.75rem;">Buka Detail & Aksi Evakuasi</button>
                     </div>
                 `);
             });
 
-            // Render Kartu di Sidebar
+            // Render Kartu Pasien di Sidebar
             if (filteredVictims.length === 0) {
                 listContainer.innerHTML = `
-                    <div style="text-align:center; padding:30px; color:#64748b; font-size:0.8rem;">
+                    <div style="text-align:center; padding:40px 20px; color:#64748b; font-size:0.8rem;">
                         Tidak ada korban yang sesuai kriteria filter/pencarian.
                     </div>
                 `;
@@ -612,23 +1493,25 @@
                     else if (v.evacuation_status === 'EVACUATED') evacTag = '<span class="tag-evac tag-evacuated">EVACUATED</span>';
 
                     const card = document.createElement('div');
-                    card.className = `card ${v.status} ${flashDeviceId === v.id ? 'flash' : ''}`;
+                    card.className = `card ${v.status} ${v.is_hardware ? 'is-hardware-card' : ''} ${flashDeviceId === v.id ? 'flash' : ''}`;
                     card.id = `card-${v.id}`;
                     card.innerHTML = `
                         <div class="card-header">
                             <div>
-                                <div class="card-title">${v.name} ${evacTag}</div>
+                                <div class="card-title">
+                                    <span>${v.name}</span> ${evacTag}
+                                </div>
                                 <div class="card-subtitle">
-                                    <span>${v.id}</span> • <span>${v.device || 'LoRa Node'}</span>
-                                    ${v.is_hardware ? '<span style="background:#0284c7; color:#ffffff; font-weight:bold; padding:1px 5px; border-radius:4px; font-size:0.62rem;">HARDWARE COM23</span>' : ''}
-                                    ${v.gps_fixed ? '<span style="background:#10b981; color:#ffffff; font-weight:bold; padding:1px 5px; border-radius:4px; font-size:0.62rem;">GPS FIX</span>' : (v.is_hardware ? '<span style="background:#64748b; color:#ffffff; font-size:0.62rem; padding:1px 5px; border-radius:4px;">GPS SEARCHING</span>' : '')}
+                                    <span style="font-family:var(--font-mono);">${v.id}</span> • <span>${v.device || 'LoRa Node'}</span>
+                                    ${v.is_hardware ? '<span class="hw-tag">HARDWARE</span>' : ''}
+                                    ${v.gps_fixed ? '<span class="gps-tag gps-fix">GPS FIX</span>' : (v.is_hardware ? '<span class="gps-tag gps-search">GPS SEARCH</span>' : '')}
                                 </div>
                             </div>
                             <span class="badge ${v.status}">${v.status.toUpperCase()}</span>
                         </div>
 
                         <div class="distance-info">
-                            <span>Jarak: ${distInfo.distance} m ke ${distInfo.direction} dari Posko</span>
+                            <span>🧭 ${distInfo.distance} m ke ${distInfo.direction} dari Posko</span>
                         </div>
 
                         <div class="vital-grid">
@@ -637,7 +1520,7 @@
                                 <span class="vital-val ${evalRes.spo2Class}">${evalRes.spo2Text}</span>
                             </div>
                             <div class="vital-cell">
-                                <span class="vital-label">BPM</span>
+                                <span class="vital-label">Nadi</span>
                                 <span class="vital-val ${evalRes.bpmClass}">${evalRes.bpmText}</span>
                             </div>
                             <div class="vital-cell">
@@ -651,7 +1534,7 @@
                         </div>
 
                         <div class="caution-box ${v.status}">
-                            ${evalRes.cautions.map(c => `<div>${c}</div>`).join('')}
+                            ${evalRes.cautions.map(c => `<div>• ${c}</div>`).join('')}
                         </div>
 
                         <div class="card-actions">
@@ -681,7 +1564,7 @@
         }
 
         // ==========================================
-        // DRAWER DETAIL PASIEN & STATUS EVAKUASI
+        // 6. DRAWER DETAIL PASIEN & STATUS EVAKUASI
         // ==========================================
         function openDrawer(id) {
             const v = victims.find(item => item.id === id);
@@ -693,52 +1576,52 @@
             const distInfo = calculateDistanceAndBearing(BASE_STATION.lat, BASE_STATION.lng, v.lat, v.lng);
 
             content.innerHTML = `
-                <div style="background:#1f2937; padding:14px; border-radius:8px; border-left:4px solid ${colorMap[v.status]};">
-                    <div style="font-size:1.1rem; font-weight:bold; color:#fff;">${v.name}</div>
-                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">ID: ${v.id} • ${v.device || 'Gelang LoRa'}</div>
-                    <div style="margin-top:6px; font-size:0.8rem; font-weight:bold; color:${colorMap[v.status]};">${v.statusText}</div>
+                <div style="background:rgba(255,255,255,0.04); padding:16px; border-radius:10px; border-left:4px solid ${colorMap[v.status]};">
+                    <div style="font-size:1.15rem; font-weight:800; color:#fff;">${v.name}</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; font-family:var(--font-mono); margin-top:2px;">ID: ${v.id} • ${v.device || 'Gelang LoRa'}</div>
+                    <div style="margin-top:6px; font-size:0.8rem; font-weight:800; color:${colorMap[v.status]};">${v.statusText}</div>
                 </div>
 
-                <div style="background:#1f2937; padding:12px; border-radius:8px;">
-                    <div style="font-size:0.75rem; font-weight:bold; color:#38bdf8; margin-bottom:6px;">LOKASI GEOSPASIAL</div>
-                    <div style="font-size:0.8rem; color:#e2e8f0;">Koordinat: <b>${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}</b></div>
-                    <div style="font-size:0.8rem; color:#34d399; margin-top:2px;">Jarak Posko: <b>${distInfo.distance} meter</b> (${distInfo.direction})</div>
-                    <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Kekuatan Radio LoRa: <b>${v.rssi} dBm</b></div>
+                <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+                    <div style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary); margin-bottom:8px;">LOKASI GEOSPASIAL</div>
+                    <div style="font-size:0.8rem; font-family:var(--font-mono); color:#e2e8f0;">Lat: <b>${v.lat.toFixed(6)}</b> | Lng: <b>${v.lng.toFixed(6)}</b></div>
+                    <div style="font-size:0.8rem; color:#34d399; margin-top:4px; font-family:var(--font-mono);">Jarak Posko: <b>${distInfo.distance} meter</b> (${distInfo.direction})</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:4px; font-family:var(--font-mono);">Kekuatan Sinyal LoRa: <b>${v.rssi} dBm</b></div>
                 </div>
 
-                <div style="background:#1f2937; padding:12px; border-radius:8px;">
-                    <div style="font-size:0.75rem; font-weight:bold; color:#38bdf8; margin-bottom:8px;">TANDA VITAL TERKINI</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.8rem;">
-                        <div style="background:#111827; padding:8px; border-radius:6px;">
-                            <span style="font-size:0.7rem; color:#94a3b8;">SpO2</span><br>
-                            <b class="${evalRes.spo2Class}">${evalRes.spo2Text}</b>
+                <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+                    <div style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary); margin-bottom:10px;">TANDA VITAL TERKINI</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-family:var(--font-mono);">
+                        <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px;">
+                            <span style="font-size:0.68rem; color:#94a3b8; text-transform:uppercase;">SpO2</span><br>
+                            <b style="font-size:1.05rem;" class="${evalRes.spo2Class}">${evalRes.spo2Text}</b>
                         </div>
-                        <div style="background:#111827; padding:8px; border-radius:6px;">
-                            <span style="font-size:0.7rem; color:#94a3b8;">Detak Jantung</span><br>
-                            <b class="${evalRes.bpmClass}">${evalRes.bpmText}</b>
+                        <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px;">
+                            <span style="font-size:0.68rem; color:#94a3b8; text-transform:uppercase;">Detak Jantung</span><br>
+                            <b style="font-size:1.05rem;" class="${evalRes.bpmClass}">${evalRes.bpmText}</b>
                         </div>
-                        <div style="background:#111827; padding:8px; border-radius:6px;">
-                            <span style="font-size:0.7rem; color:#94a3b8;">Suhu Tubuh</span><br>
-                            <b class="${evalRes.tempClass}">${evalRes.tempText}</b>
+                        <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px;">
+                            <span style="font-size:0.68rem; color:#94a3b8; text-transform:uppercase;">Suhu Tubuh</span><br>
+                            <b style="font-size:1.05rem;" class="${evalRes.tempClass}">${evalRes.tempText}</b>
                         </div>
-                        <div style="background:#111827; padding:8px; border-radius:6px;">
-                            <span style="font-size:0.7rem; color:#94a3b8;">Man-Down</span><br>
-                            <b>${v.manDown ? 'JATUH (BAHAYA)' : 'Normal'}</b>
+                        <div style="background:rgba(0,0,0,0.4); padding:10px; border-radius:8px;">
+                            <span style="font-size:0.68rem; color:#94a3b8; text-transform:uppercase;">Man-Down (Jatuh)</span><br>
+                            <b style="font-size:0.95rem; color:${v.manDown ? '#f87171' : '#34d399'};">${v.manDown ? 'JATUH (BAHAYA)' : 'Normal'}</b>
                         </div>
                     </div>
                 </div>
 
-                <div style="background:#1f2937; padding:12px; border-radius:8px;">
-                    <div style="font-size:0.75rem; font-weight:bold; color:#38bdf8; margin-bottom:8px;">KONTROL STATUS EVAKUASI</div>
+                <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+                    <div style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary); margin-bottom:10px;">KONTROL STATUS OPERASI SAR</div>
                     <div style="display:flex; flex-direction:column; gap:8px;">
                         <button class="btn-evac btn-evac-dispatch" onclick="updateEvacStatus('${v.id}', 'DISPATCHED')">
-                            Kirim Tim Medis Lapangan (Dispatched)
+                            🚨 Kirim Tim Penyelamat (Dispatched)
                         </button>
                         <button class="btn-evac btn-evac-done" onclick="updateEvacStatus('${v.id}', 'EVACUATED')">
-                            Korban Berhasil Dievakuasi (Evacuated)
+                            ✅ Korban Berhasil Dievakuasi (Evacuated)
                         </button>
                         <button class="btn-evac btn-evac-reset" onclick="updateEvacStatus('${v.id}', 'RESET')">
-                            Reset Status Operasi
+                            🔄 Reset Status Penyelamatan
                         </button>
                     </div>
                 </div>
@@ -771,7 +1654,7 @@
         }
 
         // ==========================================
-        // REAL-TIME WEBSOCKET STREAMING CLIENT
+        // 7. REAL-TIME WEBSOCKET STREAMING CLIENT
         // ==========================================
         function setupWebSocket() {
             const statusBadge = document.getElementById('conn-status');
@@ -786,7 +1669,7 @@
 
             socket.onopen = () => {
                 statusBadge.className = 'connection-badge conn-live';
-                statusBadge.innerHTML = '<span class="dot-pulse"></span> LIVE WS';
+                statusBadge.innerHTML = '<span class="dot-pulse"></span> LIVE GATEWAY';
                 tickerText.innerText = 'Tersambung ke Live Telemetry Stream';
             };
 
@@ -798,7 +1681,7 @@
                 if (data.type === 'INITIAL_STATE' || data.type === 'TELEMETRY_UPDATE') {
                     victims = data.all_victims;
                     if (data.victim) {
-                        tickerText.innerText = `[${now}] ${data.victim.id} (${data.victim.name}) -> Update Masuk`;
+                        tickerText.innerText = `[${now}] ${data.victim.id} (${data.victim.name}) -> Telemetri Terbarui`;
                     }
                     renderDashboard(data.updated_device);
                 }
@@ -806,7 +1689,7 @@
 
             socket.onclose = () => {
                 statusBadge.className = 'connection-badge conn-offline';
-                statusBadge.innerText = 'Offline (Reconnecting...)';
+                statusBadge.innerText = 'OFFLINE (Reconnecting...)';
                 tickerText.innerText = 'Koneksi terputus. Mencoba rekoneksi dalam 3 detik...';
                 setTimeout(setupWebSocket, 3000);
             };
@@ -818,11 +1701,8 @@
 
         setupWebSocket();
 
-        // Tutup drawer dengan tombol Escape
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeDrawer();
-            }
+            if (e.key === 'Escape') closeDrawer();
         });
     </script>
 </body>

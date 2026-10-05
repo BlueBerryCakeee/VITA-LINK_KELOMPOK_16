@@ -9,16 +9,18 @@ Proyek Desain Proyek Kelompok 16 - Departemen Teknik Elektro & Komputer FTUI.
 ```text
 VITA-LINK_KELOMPOK_16/
 ├── src/
-│   └── main.cpp                        # Firmware ESP32 (Untuk pengguna VS Code + PlatformIO)
-├── platformio.ini                      # Konfigurasi PlatformIO (Board & Library ESP32)
+│   └── main.cpp                          # Firmware ESP32 (Untuk pengguna VS Code + PlatformIO)
+├── platformio.ini                        # Konfigurasi PlatformIO (Board & Library ESP32)
 ├── firmware_arduino/
+│   ├── vita_link_bracelet/
+│   │   └── vita_link_bracelet.ino        # Sketch Utama ESP32 (Buka langsung di Arduino IDE)
 │   └── esp32_gps_adxl345_tester/
-│       └── esp32_gps_adxl345_tester.ino # Firmware ESP32 (Untuk pengguna Arduino IDE)
-├── serial_bridge.py                    # Gateway pembaca serial USB ESP32 -> Kirim ke Web GIS
-├── server.py                           # Backend Web GIS Server (FastAPI + WebSocket)
-├── index.html                          # Frontend Tactical Dashboard Web GIS
-├── schema.sql                          # Skema database SQLite telemetri
-└── requirements.txt                    # Dependensi Python
+│       └── esp32_gps_adxl345_tester.ino  # Sketch pengujian sensor ESP32
+├── serial_bridge.py                      # Gateway pembaca serial USB ESP32 -> Kirim ke Web GIS
+├── server.py                             # Backend Web GIS Server (FastAPI + WebSocket)
+├── index.html                            # Frontend Tactical Dashboard Web GIS
+├── schema.sql                            # Skema database SQLite telemetri
+└── requirements.txt                      # Dependensi Python
 ```
 
 ---
