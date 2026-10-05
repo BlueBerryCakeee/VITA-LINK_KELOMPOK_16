@@ -305,10 +305,36 @@ async def get_index():
     """Menyajikan Frontend Tactical Command Center HTML"""
     return FileResponse(os.path.join(DIR_PATH, "index.html"))
 
+@app.get("/analytics")
+async def get_analytics_page():
+    """Menyajikan Halaman Tactical Analytics & Operational Intelligence"""
+    analytics_path = os.path.join(DIR_PATH, "analytics.html")
+    if os.path.exists(analytics_path):
+        return FileResponse(analytics_path)
+    return FileResponse(os.path.join(DIR_PATH, "index.html"))
+
 @app.get("/api/victims")
 async def get_victims():
     """Mengambil daftar seluruh korban beserta kondisi terkini"""
     return JSONResponse(list(victims_state.values()))
+
+@app.get("/api/events")
+async def get_triage_events(limit: int = 50):
+    """Mengambil riwayat kejadian darurat dan perubahan status triage dari database"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT event_id, device_id, ews_score, triage_color, trigger_reason, logged_at 
+               FROM triage_events 
+               ORDER BY event_id DESC LIMIT ?""",
+            (limit,)
+        )
+        rows = [dict(r) for r in cursor.fetchall()]
+        conn.close()
+        return JSONResponse(rows)
+    except Exception as e:
+        return JSONResponse([])
 
 @app.get("/api/victims/{dev_id}")
 async def get_victim_detail(dev_id: str):
