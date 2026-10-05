@@ -3,37 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VITA-Link | Real-Time Tactical Disaster Triage GIS Command Center</title>
+    <title>VITA-Link | Tactical Disaster Triage GIS Command Center</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
             --bg-base: #060913;
             --bg-surface: #0a0f1d;
-            --bg-card: rgba(16, 24, 40, 0.75);
+            --bg-card: rgba(15, 23, 42, 0.75);
             --bg-card-hover: rgba(24, 36, 60, 0.85);
             --border-subtle: rgba(255, 255, 255, 0.08);
-            --border-highlight: rgba(56, 189, 248, 0.25);
+            --border-highlight: rgba(56, 189, 248, 0.3);
             
             --color-primary: #38bdf8;
-            --color-primary-glow: rgba(56, 189, 248, 0.35);
+            --color-primary-glow: rgba(56, 189, 248, 0.4);
             
             --color-red: #ef4444;
-            --color-red-glow: rgba(239, 68, 68, 0.3);
+            --color-red-glow: rgba(239, 68, 68, 0.35);
             --color-red-bg: rgba(239, 68, 68, 0.12);
             
             --color-yellow: #f59e0b;
-            --color-yellow-glow: rgba(245, 158, 11, 0.3);
+            --color-yellow-glow: rgba(245, 158, 11, 0.35);
             --color-yellow-bg: rgba(245, 158, 11, 0.12);
             
             --color-green: #10b981;
-            --color-green-glow: rgba(16, 185, 129, 0.3);
+            --color-green-glow: rgba(16, 185, 129, 0.35);
             --color-green-bg: rgba(16, 185, 129, 0.12);
             
+            --color-purple: #a855f7;
+            --color-purple-bg: rgba(168, 85, 247, 0.12);
+
             --text-main: #f8fafc;
             --text-muted: #94a3b8;
             --text-dim: #64748b;
@@ -51,13 +54,13 @@
             color: var(--text-main);
             overflow: hidden;
             background-image: 
-                radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.05) 0%, transparent 40%),
-                radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.04) 0%, transparent 40%);
+                radial-gradient(circle at 12% 15%, rgba(14, 165, 233, 0.07) 0%, transparent 45%),
+                radial-gradient(circle at 88% 85%, rgba(99, 102, 241, 0.05) 0%, transparent 45%);
         }
 
-        /* Scrollbar Styling */
+        /* Scrollbars */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.25); }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
@@ -65,14 +68,14 @@
            SIDEBAR COMMAND PANEL
            ======================================================== */
         #sidebar {
-            width: 460px;
-            min-width: 440px;
+            width: 480px;
+            min-width: 450px;
             background: var(--bg-surface);
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--border-subtle);
             z-index: 1000;
-            box-shadow: 10px 0 35px rgba(0, 0, 0, 0.65);
+            box-shadow: 10px 0 35px rgba(0, 0, 0, 0.7);
             position: relative;
         }
 
@@ -91,7 +94,7 @@
             right: 0;
             height: 1px;
             background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
-            opacity: 0.5;
+            opacity: 0.6;
         }
 
         .brand-container {
@@ -107,25 +110,25 @@
         }
 
         .brand-icon {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-            border-radius: 8px;
+            border-radius: 9px;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 15px var(--color-primary-glow);
+            box-shadow: 0 0 18px var(--color-primary-glow);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .brand-icon svg {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             fill: #ffffff;
         }
 
         .brand-text h1 {
-            font-size: 1.15rem;
+            font-size: 1.2rem;
             font-weight: 800;
             letter-spacing: -0.5px;
             background: linear-gradient(135deg, #ffffff 0%, #bae6fd 100%);
@@ -144,7 +147,7 @@
 
         .connection-badge {
             font-size: 0.68rem;
-            padding: 3px 9px;
+            padding: 4px 10px;
             border-radius: 9999px;
             font-weight: 700;
             display: inline-flex;
@@ -169,8 +172,8 @@
         }
 
         .dot-pulse {
-            width: 6px;
-            height: 6px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
             background: #10b981;
             box-shadow: 0 0 8px #10b981;
@@ -179,7 +182,7 @@
 
         @keyframes pulse-dot {
             0% { transform: scale(0.9); opacity: 1; }
-            50% { transform: scale(1.5); opacity: 0.4; }
+            50% { transform: scale(1.6); opacity: 0.4; }
             100% { transform: scale(0.9); opacity: 1; }
         }
 
@@ -187,16 +190,16 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-top: 10px;
-            padding-top: 8px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
             font-size: 0.72rem;
             color: var(--text-muted);
         }
 
         .time-box {
             font-family: var(--font-mono);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             color: #e2e8f0;
             display: flex;
             align-items: center;
@@ -215,7 +218,7 @@
             background: rgba(30, 41, 59, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: var(--text-muted);
-            padding: 4px 9px;
+            padding: 5px 10px;
             border-radius: 6px;
             font-size: 0.7rem;
             font-weight: 600;
@@ -227,7 +230,7 @@
         }
 
         .btn-ctrl:hover {
-            background: rgba(51, 65, 85, 0.9);
+            background: rgba(51, 65, 85, 0.95);
             color: #ffffff;
             border-color: var(--color-primary);
             transform: translateY(-1px);
@@ -237,7 +240,7 @@
             background: rgba(2, 132, 199, 0.25);
             border-color: var(--color-primary);
             color: #ffffff;
-            box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
         }
 
         /* Soundwave equalizer indicator */
@@ -245,11 +248,11 @@
             display: inline-flex;
             align-items: center;
             gap: 2px;
-            height: 10px;
+            height: 11px;
         }
 
         .sound-bar {
-            width: 2px;
+            width: 2.5px;
             height: 100%;
             background: var(--color-primary);
             border-radius: 1px;
@@ -258,6 +261,38 @@
         .sound-bar:nth-child(2) { animation-delay: 0.2s; height: 60%; }
         .sound-bar:nth-child(3) { animation-delay: 0.4s; height: 80%; }
         @keyframes soundBounce { 0% { height: 20%; } 100% { height: 100%; } }
+
+        /* Evacuation Progress Meter */
+        .evac-progress-wrap {
+            padding: 8px 16px;
+            background: rgba(15, 23, 42, 0.6);
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 0.7rem;
+        }
+
+        .evac-progress-header {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        .evac-progress-bar {
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .evac-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981 0%, #38bdf8 100%);
+            border-radius: 9999px;
+            width: 0%;
+            transition: width 0.4s ease;
+        }
 
         /* ========================================================
            TRIAGE STATS SUMMARY CARDS
@@ -288,7 +323,7 @@
 
         .summary-box:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.35);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
         }
 
         .summary-num {
@@ -341,7 +376,7 @@
         .summary-box.total.active {
             background: rgba(148, 163, 184, 0.2);
             border-color: #ffffff;
-            box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.2);
         }
 
         /* Search Filter Input Bar */
@@ -372,39 +407,66 @@
 
         .search-input {
             width: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 7px;
-            padding: 7px 12px 7px 32px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 7px 10px 7px 30px;
             font-size: 0.78rem;
             color: #ffffff;
+            font-family: var(--font-sans);
             outline: none;
             transition: all 0.2s;
-            font-family: var(--font-sans);
         }
 
         .search-input:focus {
             border-color: var(--color-primary);
-            box-shadow: 0 0 10px var(--color-primary-glow);
-            background: rgba(15, 23, 42, 1);
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
         }
 
         .search-input::placeholder { color: var(--text-dim); }
 
         .filter-badge {
-            font-size: 0.68rem;
-            font-weight: 700;
+            font-size: 0.7rem;
             color: var(--color-primary);
             background: rgba(56, 189, 248, 0.12);
-            border: 1px solid rgba(56, 189, 248, 0.25);
+            border: 1px solid rgba(56, 189, 248, 0.3);
             padding: 4px 8px;
-            border-radius: 6px;
+            border-radius: 5px;
             white-space: nowrap;
+            font-weight: 600;
         }
 
-        /* ========================================================
-           VICTIM CARDS LIST
-           ======================================================== */
+        /* Quick Action Bar for Testing / Simulation */
+        .quick-actions-bar {
+            padding: 8px 16px;
+            background: rgba(15, 23, 42, 0.5);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            overflow-x: auto;
+        }
+
+        .btn-quick-action {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .btn-quick-action:hover {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            border-color: rgba(56, 189, 248, 0.4);
+        }
+
+        /* Victim List & Cards */
         .victim-list {
             flex: 1;
             overflow-y: auto;
@@ -417,50 +479,49 @@
         .card {
             background: var(--bg-card);
             border-radius: 10px;
-            padding: 14px;
+            padding: 14px 15px;
             cursor: pointer;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid var(--border-subtle);
-            border-left: 5px solid var(--text-dim);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border-left: 5px solid #64748b;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
             position: relative;
             backdrop-filter: blur(12px);
-            overflow: hidden;
         }
 
         .card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
             background: var(--bg-card-hover);
-            border-color: rgba(255, 255, 255, 0.15);
+            border-color: var(--border-highlight);
         }
 
         .card.red {
             border-left-color: var(--color-red);
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(16, 24, 40, 0.8) 100%);
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);
         }
         .card.yellow {
             border-left-color: var(--color-yellow);
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, rgba(16, 24, 40, 0.8) 100%);
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, rgba(15, 23, 42, 0.85) 100%);
         }
         .card.green {
             border-left-color: var(--color-green);
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.06) 0%, rgba(16, 24, 40, 0.8) 100%);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(15, 23, 42, 0.85) 100%);
         }
 
-        /* Special hardware glow */
         .card.is-hardware-card {
-            border: 1px solid rgba(56, 189, 248, 0.45);
-            border-left: 5px solid #06b6d4;
-            box-shadow: 0 0 20px rgba(6, 182, 212, 0.18);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2), inset 0 0 15px rgba(56, 189, 248, 0.05);
+            border-top: 1px solid rgba(56, 189, 248, 0.3);
         }
 
         .card.flash {
-            animation: cardPulseAlert 1.2s ease infinite alternate;
+            animation: cardShockAlert 1.5s ease;
         }
-        @keyframes cardPulseAlert {
-            0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
-            100% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.9); }
+
+        @keyframes cardShockAlert {
+            0% { background: rgba(239, 68, 68, 0.7); transform: scale(1.02); }
+            50% { background: rgba(239, 68, 68, 0.2); }
+            100% { background: var(--bg-card); transform: scale(1); }
         }
 
         .card-header {
@@ -471,7 +532,7 @@
         }
 
         .card-title {
-            font-weight: 700;
+            font-weight: 800;
             font-size: 0.95rem;
             color: #ffffff;
             display: flex;
@@ -480,7 +541,7 @@
         }
 
         .card-subtitle {
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             color: var(--text-muted);
             display: flex;
             align-items: center;
@@ -492,11 +553,23 @@
         .hw-tag {
             background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
             color: #ffffff;
-            font-size: 0.62rem;
+            font-size: 0.6rem;
             font-weight: 800;
             padding: 1px 6px;
             border-radius: 4px;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .hw-tag::before {
+            content: '';
+            width: 5px;
+            height: 5px;
+            background: #38bdf8;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #38bdf8;
         }
 
         .gps-tag {
@@ -774,21 +847,21 @@
         }
 
         .shockwave-core {
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             border-radius: 50%;
             border: 2px solid #ffffff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            box-shadow: 0 0 12px rgba(0,0,0,0.6);
             position: relative;
             z-index: 2;
         }
 
         .shockwave-ripple {
             position: absolute;
-            top: -11px;
-            left: -11px;
-            width: 40px;
-            height: 40px;
+            top: -12px;
+            left: -12px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             opacity: 0;
             pointer-events: none;
@@ -828,7 +901,7 @@
         }
 
         .drawer-panel {
-            width: 420px;
+            width: 440px;
             max-width: 90vw;
             background: #090f1d;
             height: 100%;
@@ -836,7 +909,7 @@
             padding: 24px;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            gap: 16px;
             box-shadow: -15px 0 45px rgba(0, 0, 0, 0.75);
             overflow-y: auto;
             animation: slideLeft 0.25s cubic-bezier(0.16, 1, 0.3, 1);
@@ -852,7 +925,7 @@
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border-subtle);
-            padding-bottom: 16px;
+            padding-bottom: 14px;
         }
 
         .drawer-header h2 {
@@ -868,8 +941,8 @@
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border-subtle);
             color: var(--text-muted);
-            width: 30px;
-            height: 30px;
+            width: 32px;
+            height: 32px;
             border-radius: 6px;
             font-size: 1.2rem;
             cursor: pointer;
@@ -885,10 +958,38 @@
             background: var(--color-red-bg);
         }
 
+        /* Live ECG Canvas */
+        .ecg-card {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 8px;
+            padding: 10px 12px;
+            position: relative;
+        }
+
+        .ecg-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 0.72rem;
+            color: var(--color-primary);
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        #ecgCanvas {
+            width: 100%;
+            height: 60px;
+            display: block;
+            background: #020617;
+            border-radius: 4px;
+        }
+
         .btn-evac {
-            padding: 10px 14px;
+            padding: 11px 14px;
             border-radius: 7px;
-            font-size: 0.78rem;
+            font-size: 0.8rem;
             font-weight: 700;
             cursor: pointer;
             border: 1px solid transparent;
@@ -921,6 +1022,22 @@
             color: var(--text-muted);
         }
         .btn-evac-reset:hover { background: #334155; color: #ffffff; }
+
+        /* Notes Box */
+        .notes-area {
+            width: 100%;
+            background: #050914;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: #f8fafc;
+            font-family: var(--font-sans);
+            font-size: 0.75rem;
+            resize: vertical;
+            min-height: 55px;
+            outline: none;
+        }
+        .notes-area:focus { border-color: var(--color-primary); }
 
         /* Custom Leaflet Dark Popup */
         .leaflet-popup-content-wrapper {
@@ -956,7 +1073,7 @@
                     </div>
                     <div class="brand-text">
                         <h1>VITA-Link GIS</h1>
-                        <span>Tactical Triage Ops</span>
+                        <span>Tactical Triage Ops • Kelompok 16</span>
                     </div>
                 </div>
                 <span id="conn-status" class="connection-badge conn-offline">Offline</span>
@@ -964,8 +1081,8 @@
 
             <div class="header-meta">
                 <div class="time-box">
-                    <span>UTC+7</span>
-                    <div id="live-clock">--:--:-- WIB</div>
+                    <span>WIB</span>
+                    <div id="live-clock">--:--:--</div>
                 </div>
                 <div class="header-actions">
                     <button id="btn-audio-toggle" class="btn-ctrl active" onclick="toggleAudioAlarm()" title="Nyalakan / Matikan Sirine Audio">
@@ -983,15 +1100,26 @@
             </div>
         </div>
 
+        <!-- Evacuation Progress -->
+        <div class="evac-progress-wrap">
+            <div class="evac-progress-header">
+                <span>STATUS PENYELAMATAN KORBAN</span>
+                <span id="evac-percent-text">0% Tertangani</span>
+            </div>
+            <div class="evac-progress-bar">
+                <div class="evac-progress-fill" id="evac-bar-fill"></div>
+            </div>
+        </div>
+
         <!-- Filter Interaktif Triage -->
         <div class="status-summary">
-            <div class="summary-box red" id="flt-red" onclick="setTriageFilter('red')" title="Filter Korban Kritis">
+            <div class="summary-box red" id="flt-red" onclick="setTriageFilter('red')" title="Filter Korban Kritis (Prioritas 1)">
                 <span class="summary-num" id="cnt-red">0</span>Kritis
             </div>
-            <div class="summary-box yellow" id="flt-yellow" onclick="setTriageFilter('yellow')" title="Filter Korban Sedang">
+            <div class="summary-box yellow" id="flt-yellow" onclick="setTriageFilter('yellow')" title="Filter Korban Sedang (Prioritas 2)">
                 <span class="summary-num" id="cnt-yellow">0</span>Sedang
             </div>
-            <div class="summary-box green" id="flt-green" onclick="setTriageFilter('green')" title="Filter Korban Stabil">
+            <div class="summary-box green" id="flt-green" onclick="setTriageFilter('green')" title="Filter Korban Stabil (Prioritas 3)">
                 <span class="summary-num" id="cnt-green">0</span>Stabil
             </div>
             <div class="summary-box total active" id="flt-all" onclick="setTriageFilter('all')" title="Tampilkan Semua Korban">
@@ -1003,9 +1131,17 @@
         <div class="search-bar-wrap">
             <div class="search-input-box">
                 <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                <input type="text" id="search-input" class="search-input" placeholder="Cari nama korban atau ID perangkat..." oninput="handleSearch(this.value)" />
+                <input type="text" id="search-input" class="search-input" placeholder="Cari korban, ID, atau gelang..." oninput="handleSearch(this.value)" />
             </div>
             <span class="filter-badge" id="filter-status-text">Semua Korban</span>
+        </div>
+
+        <!-- Quick Action Bar -->
+        <div class="quick-actions-bar">
+            <button class="btn-quick-action" onclick="quickSimulate('fall')">⚡ Tes Man-Down</button>
+            <button class="btn-quick-action" onclick="quickSimulate('hypoxia')">🫀 Tes SpO2 Kritis</button>
+            <button class="btn-quick-action" onclick="quickSimulate('fever')">🌡️ Tes Demam</button>
+            <button class="btn-quick-action" onclick="quickSimulate('normal')">🔄 Normal</button>
         </div>
 
         <!-- Daftar Korban -->
@@ -1064,7 +1200,7 @@
             const mins = String(now.getMinutes()).padStart(2, '0');
             const secs = String(now.getSeconds()).padStart(2, '0');
             const el = document.getElementById('live-clock');
-            if (el) el.innerText = `${hours}:${mins}:${secs} WIB`;
+            if (el) el.innerText = `${hours}:${mins}:${secs}`;
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -1133,14 +1269,22 @@
             </div>
         `);
 
-        // Radius LoRa Coverage (1000m)
-        const loraRadius = L.circle([BASE_STATION.lat, BASE_STATION.lng], {
+        // Radius LoRa Coverage (Zona 250m, 500m, 1000m)
+        const loraRadius1000 = L.circle([BASE_STATION.lat, BASE_STATION.lng], {
             radius: 1000,
             color: '#38bdf8',
-            weight: 1.5,
+            weight: 1.2,
             dashArray: '6, 6',
             fillColor: '#0284c7',
-            fillOpacity: 0.05
+            fillOpacity: 0.03
+        }).addTo(map);
+
+        const loraRadius500 = L.circle([BASE_STATION.lat, BASE_STATION.lng], {
+            radius: 500,
+            color: '#0284c7',
+            weight: 1,
+            dashArray: '4, 4',
+            fillOpacity: 0.02
         }).addTo(map);
 
         function focusBaseStation() {
@@ -1215,6 +1359,7 @@
         const polylines = {};
         let activeFilter = 'all';
         let searchQuery = '';
+        let activeDrawerId = null;
 
         function calculateDistanceAndBearing(lat1, lon1, lat2, lon2) {
             const R = 6371e3;
@@ -1358,6 +1503,7 @@
             listContainer.innerHTML = '';
 
             let cntRed = 0, cntYellow = 0, cntGreen = 0;
+            let cntEvacuated = 0;
             let emergencyVictim = null;
 
             victims.forEach(v => {
@@ -1365,10 +1511,20 @@
                 else if (v.status === 'yellow') cntYellow++;
                 else if (v.status === 'green') cntGreen++;
 
+                if (v.evacuation_status === 'EVACUATED') cntEvacuated++;
+
                 if ((v.manDown || v.status === 'red') && !emergencyVictim) {
                     emergencyVictim = v;
                 }
             });
+
+            // Update Progress Evakuasi
+            const total = victims.length;
+            const percent = total > 0 ? Math.round((cntEvacuated / total) * 100) : 0;
+            const evacFill = document.getElementById('evac-bar-fill');
+            const evacText = document.getElementById('evac-percent-text');
+            if (evacFill) evacFill.style.width = `${percent}%`;
+            if (evacText) evacText.innerText = `${percent}% (${cntEvacuated}/${total}) Tertangani`;
 
             // Update Floating Emergency Siren Banner
             const sirenBanner = document.getElementById('floating-siren');
@@ -1436,14 +1592,14 @@
                     if (map.hasLayer(markers[v.id])) map.removeLayer(markers[v.id]);
                 }
 
-                // Polyline penghubung dari Posko ke Korban
+                // Polyline penghubung dari Posko ke Korban Kritis / Hardware
                 if (v.status === 'red' || v.is_hardware) {
                     if (!polylines[v.id]) {
                         polylines[v.id] = L.polyline([[BASE_STATION.lat, BASE_STATION.lng], [v.lat, v.lng]], {
                             color: markerColor,
                             weight: 1.5,
                             dashArray: '4, 4',
-                            opacity: 0.6
+                            opacity: 0.65
                         }).addTo(map);
                     } else {
                         polylines[v.id].setLatLngs([[BASE_STATION.lat, BASE_STATION.lng], [v.lat, v.lng]]);
@@ -1553,6 +1709,11 @@
             document.getElementById('cnt-yellow').innerText = cntYellow;
             document.getElementById('cnt-green').innerText = cntGreen;
             document.getElementById('cnt-total').innerText = victims.length;
+
+            // Jika drawer sedang terbuka untuk korban tertentu, perbarui kontennya secara halus
+            if (activeDrawerId) {
+                updateDrawerContent(activeDrawerId);
+            }
         }
 
         function focusVictim(id) {
@@ -1564,22 +1725,108 @@
         }
 
         // ==========================================
-        // 6. DRAWER DETAIL PASIEN & STATUS EVAKUASI
+        // 6. DRAWER DETAIL PASIEN & LIVE ECG
         // ==========================================
+        let ecgAnimId = null;
+        let ecgOffset = 0;
+
+        function startEcgAnimation(bpm) {
+            if (ecgAnimId) cancelAnimationFrame(ecgAnimId);
+            const canvas = document.getElementById('ecgCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            const speed = (bpm > 0 ? bpm : 70) / 30;
+
+            function draw() {
+                if (!document.getElementById('ecgCanvas')) return;
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Grid background
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+                ctx.lineWidth = 1;
+                for (let x = 0; x < canvas.width; x += 15) {
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+                }
+                for (let y = 0; y < canvas.height; y += 15) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+                }
+
+                // ECG Pulse Line
+                ctx.strokeStyle = bpm > 110 || bpm < 50 ? '#f87171' : '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = ctx.strokeStyle;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+
+                const midY = canvas.height / 2;
+                const cycle = 120; // period
+
+                for (let x = 0; x < canvas.width; x++) {
+                    const pos = (x + ecgOffset) % cycle;
+                    let y = midY;
+
+                    if (bpm > 0) {
+                        if (pos > 30 && pos < 40) y = midY - 6; // P wave
+                        else if (pos >= 40 && pos < 45) y = midY;
+                        else if (pos >= 45 && pos < 50) y = midY + 8; // Q
+                        else if (pos >= 50 && pos < 55) y = midY - 24; // R peak!
+                        else if (pos >= 55 && pos < 60) y = midY + 12; // S
+                        else if (pos >= 60 && pos < 70) y = midY;
+                        else if (pos >= 70 && pos < 85) y = midY - 10; // T wave
+                    }
+
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                ecgOffset += speed;
+                ecgAnimId = requestAnimationFrame(draw);
+            }
+
+            draw();
+        }
+
         function openDrawer(id) {
+            activeDrawerId = id;
+            updateDrawerContent(id);
+            document.getElementById('drawer-modal').classList.add('active');
+        }
+
+        function updateDrawerContent(id) {
             const v = victims.find(item => item.id === id);
             if (!v) return;
 
-            const drawerModal = document.getElementById('drawer-modal');
             const content = document.getElementById('drawer-content');
             const evalRes = evaluateMetrics(v);
             const distInfo = calculateDistanceAndBearing(BASE_STATION.lat, BASE_STATION.lng, v.lat, v.lng);
 
+            // Ambil catatan tersimpan di localStorage
+            const savedNote = localStorage.getItem(`vitalink_note_${v.id}`) || '';
+
             content.innerHTML = `
                 <div style="background:rgba(255,255,255,0.04); padding:16px; border-radius:10px; border-left:4px solid ${colorMap[v.status]};">
                     <div style="font-size:1.15rem; font-weight:800; color:#fff;">${v.name}</div>
-                    <div style="font-size:0.75rem; color:#94a3b8; font-family:var(--font-mono); margin-top:2px;">ID: ${v.id} • ${v.device || 'Gelang LoRa'}</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; font-family:var(--font-mono); margin-top:2px;">
+                        ID: ${v.id} • ${v.device || 'Gelang LoRa'}
+                        ${v.is_hardware ? '<span class="hw-tag" style="margin-left:6px;">HARDWARE ESP32</span>' : ''}
+                    </div>
                     <div style="margin-top:6px; font-size:0.8rem; font-weight:800; color:${colorMap[v.status]};">${v.statusText}</div>
+                </div>
+
+                <!-- Live ECG Canvas -->
+                <div class="ecg-card">
+                    <div class="ecg-header">
+                        <span>PULSE ECG MONITOR</span>
+                        <span>${v.bpm > 0 ? v.bpm + ' BPM' : 'STANDBY'}</span>
+                    </div>
+                    <canvas id="ecgCanvas"></canvas>
                 </div>
 
                 <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
@@ -1611,6 +1858,12 @@
                     </div>
                 </div>
 
+                <!-- Catatan Lapangan Medis SAR -->
+                <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
+                    <div style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary); margin-bottom:8px;">CATATAN MEDIS / SAR</div>
+                    <textarea class="notes-area" id="victim-note-input" placeholder="Tulis instruksi evakuasi, kondisi fisik luka, atau kebutuhan medis..." oninput="saveVictimNote('${v.id}', this.value)">${savedNote}</textarea>
+                </div>
+
                 <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
                     <div style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary); margin-bottom:10px;">KONTROL STATUS OPERASI SAR</div>
                     <div style="display:flex; flex-direction:column; gap:8px;">
@@ -1627,10 +1880,16 @@
                 </div>
             `;
 
-            drawerModal.classList.add('active');
+            startEcgAnimation(v.bpm);
+        }
+
+        function saveVictimNote(id, note) {
+            localStorage.setItem(`vitalink_note_${id}`, note);
         }
 
         function closeDrawer() {
+            activeDrawerId = null;
+            if (ecgAnimId) cancelAnimationFrame(ecgAnimId);
             document.getElementById('drawer-modal').classList.remove('active');
         }
 
@@ -1646,7 +1905,6 @@
                     const v = victims.find(item => item.id === id);
                     if (v) v.evacuation_status = action;
                     renderDashboard(id);
-                    openDrawer(id);
                 }
             } catch (err) {
                 console.error('Gagal update status evakuasi:', err);
@@ -1654,7 +1912,57 @@
         }
 
         // ==========================================
-        // 7. REAL-TIME WEBSOCKET STREAMING CLIENT
+        // 7. QUICK SIMULATION ACTION BAR
+        // ==========================================
+        async function quickSimulate(type) {
+            let payload = {
+                device_id: "BRACELET-01",
+                name: "Korban Fisik (Hardware ESP32)",
+                lat: -6.367812,
+                lng: 106.818684,
+                rssi: -70,
+                gps_fixed: true,
+                adxl_ok: true,
+                max30102_ok: true,
+                mlx90614_ok: true,
+                finger: true
+            };
+
+            if (type === 'fall') {
+                payload.manDown = true;
+                payload.spo2 = 91.0;
+                payload.bpm = 125;
+                payload.temp = 37.2;
+            } else if (type === 'hypoxia') {
+                payload.manDown = false;
+                payload.spo2 = 78.0;
+                payload.bpm = 142;
+                payload.temp = 36.8;
+            } else if (type === 'fever') {
+                payload.manDown = false;
+                payload.spo2 = 96.0;
+                payload.bpm = 105;
+                payload.temp = 39.6;
+            } else { // normal
+                payload.manDown = false;
+                payload.spo2 = 98.0;
+                payload.bpm = 76;
+                payload.temp = 36.6;
+            }
+
+            try {
+                await fetch('/api/telemetry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) {
+                console.warn('Simulation post failed:', e);
+            }
+        }
+
+        // ==========================================
+        // 8. REAL-TIME WEBSOCKET STREAMING CLIENT
         // ==========================================
         function setupWebSocket() {
             const statusBadge = document.getElementById('conn-status');
