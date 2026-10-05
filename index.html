@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VITA-Link | Real-Time Tactical Disaster Triage GIS</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; display: flex; height: 100vh; background-color: #0b1120; color: #f8fafc; overflow: hidden; }
+        
+        /* Sidebar Styling */
+        #sidebar { width: 440px; background: #111827; display: flex; flex-direction: column; border-right: 1px solid #1f2937; z-index: 1000; box-shadow: 4px 0 24px rgba(0,0,0,0.6); position: relative; }
+        .sidebar-header { padding: 14px 18px; border-bottom: 1px solid #1f2937; background: #0b0f19; }
+        .sidebar-header-top { display: flex; align-items: center; justify-content: space-between; }
+        .sidebar-header h1 { font-size: 1.15rem; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
+        .sidebar-header p { font-size: 0.74rem; color: #94a3b8; margin-top: 3px; }
+        
+        .header-controls { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+        .connection-badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 9999px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+        .conn-live { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+        .conn-offline { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+        .dot-pulse { width: 7px; height: 7px; border-radius: 50%; background: #10b981; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.4); } 100% { opacity: 1; transform: scale(1); } }
+        
+        .btn-ctrl { background: #1f2937; border: 1px solid #374151; color: #cbd5e1; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s; }
+        .btn-ctrl:hover { background: #374151; color: #ffffff; }
+        .btn-ctrl.active { background: #0284c7; border-color: #38bdf8; color: #ffffff; }
+
+        /* Triage Summary & Interactive Filters */
+        .status-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 16px; background: #111827; border-bottom: 1px solid #1f2937; }
+        .summary-box { text-align: center; padding: 6px 4px; border-radius: 7px; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; border: 1px solid transparent; user-select: none; }
+        .summary-box:hover { transform: translateY(-1px); filter: brightness(1.2); }
+        .summary-box.active { box-shadow: 0 0 0 2px #ffffff; }
+        .summary-box.red { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); }
+        .summary-box.red.active { background: rgba(239, 68, 68, 0.35); border-color: #ef4444; }
+        .summary-box.yellow { background: rgba(245, 158, 11, 0.15); color: #fde68a; border-color: rgba(245, 158, 11, 0.5); }
+        .summary-box.yellow.active { background: rgba(245, 158, 11, 0.35); border-color: #f59e0b; }
+        .summary-box.green { background: rgba(16, 185, 129, 0.15); color: #a7f3d0; border-color: rgba(16, 185, 129, 0.5); }
+        .summary-box.green.active { background: rgba(16, 185, 129, 0.35); border-color: #10b981; }
+        .summary-box.total { background: rgba(100, 116, 139, 0.15); color: #cbd5e1; border-color: rgba(100, 116, 139, 0.5); }
+        .summary-box.total.active { background: rgba(100, 116, 139, 0.35); border-color: #cbd5e1; }
+        .summary-num { font-size: 1.15rem; font-weight: 700; display: block; }
+        
+        /* Search Bar */
+        .search-bar-wrap { padding: 8px 16px; background: #162032; border-bottom: 1px solid #1f2937; display: flex; gap: 8px; align-items: center; }
+        .search-input { flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; font-size: 0.76rem; color: #ffffff; outline: none; transition: border-color 0.2s; }
+        .search-input:focus { border-color: #38bdf8; }
+        .search-input::placeholder { color: #64748b; }
+        .filter-badge { font-size: 0.68rem; color: #38bdf8; background: rgba(56,189,248,0.15); padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+
+        .victim-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* Victim Card */
+        .card { background: #1e293b; border-radius: 8px; padding: 11px 12px; cursor: pointer; transition: all 0.2s ease; border: 1px solid #334155; border-left: 5px solid #64748b; box-shadow: 0 2px 6px rgba(0,0,0,0.25); position: relative; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.4); background: #243248; border-color: #475569; }
+        .card.red { border-left-color: #ef4444; }
+        .card.yellow { border-left-color: #f59e0b; }
+        .card.green { border-left-color: #10b981; }
+        .card.flash { animation: cardPulseAlert 1.2s ease; }
+        @keyframes cardPulseAlert { 0% { background: #ef4444; } 50% { background: #3b1e28; } 100% { background: #1e293b; } }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .card-title { font-weight: 700; font-size: 0.9rem; color: #ffffff; }
+        .card-subtitle { font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 2px; }
+        
+        .badge { font-size: 0.65rem; font-weight: 700; padding: 2px 7px; border-radius: 9999px; text-transform: uppercase; }
+        .badge.red { background: #ef4444; color: #ffffff; }
+        .badge.yellow { background: #f59e0b; color: #000000; }
+        .badge.green { background: #10b981; color: #ffffff; }
+        
+        .tag-evac { font-size: 0.63rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 3px; }
+        .tag-dispatched { background: #d97706; color: #ffffff; }
+        .tag-evacuated { background: #059669; color: #ffffff; }
+
+        .distance-info { font-size: 0.7rem; color: #38bdf8; display: flex; align-items: center; gap: 4px; margin-bottom: 6px; font-weight: 600; }
+
+        /* Vital Metrics Grid */
+        .vital-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; font-size: 0.75rem; background: rgba(11, 15, 25, 0.6); padding: 6px; border-radius: 6px; margin-bottom: 6px; text-align: center; }
+        .vital-cell { padding: 3px 2px; border-radius: 4px; display: flex; flex-direction: column; gap: 2px; }
+        .vital-label { font-size: 0.62rem; color: #94a3b8; }
+        .vital-val { font-weight: 700; font-size: 0.78rem; }
+        
+        .val-red { color: #f87171 !important; }
+        .val-yellow { color: #fbbf24 !important; }
+        .val-green { color: #34d399 !important; }
+        .val-gray { color: #94a3b8 !important; font-size: 0.68rem; }
+        
+        /* Cautions Box */
+        .caution-box { padding: 5px 8px; border-radius: 5px; font-size: 0.68rem; line-height: 1.3; display: flex; flex-direction: column; gap: 2px; font-weight: 600; }
+        .caution-box.red { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #fca5a5; }
+        .caution-box.yellow { background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fde68a; }
+        .caution-box.green { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16,185,129,0.3); color: #a7f3d0; }
+        
+        .card-actions { margin-top: 6px; display: flex; justify-content: flex-end; gap: 6px; }
+        .btn-card-detail { background: #334155; border: 1px solid #475569; color: #cbd5e1; font-size: 0.68rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .btn-card-detail:hover { background: #0284c7; color: #ffffff; border-color: #38bdf8; }
+
+        /* Map Container & Floating Siren Banner */
+        #map-container { flex: 1; position: relative; height: 100vh; }
+        #map { width: 100%; height: 100%; }
+        
+        .floating-siren-banner { position: absolute; top: 14px; left: 38%; transform: translateX(-50%); max-width: calc(100% - 340px); z-index: 1500; background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%); color: #ffffff; padding: 8px 14px; border-radius: 8px; box-shadow: 0 8px 25px rgba(220, 38, 38, 0.45); border: 1px solid #fca5a5; display: none; align-items: center; gap: 10px; font-size: 0.8rem; font-weight: 700; animation: bannerPulse 1s infinite alternate; white-space: nowrap; }
+        @keyframes bannerPulse { 0% { box-shadow: 0 0 8px rgba(220, 38, 38, 0.5); } 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.85); } }
+        .floating-siren-banner.active { display: flex; }
+        .badge-darurat { background: #ffffff; color: #991b1b; font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; }
+        .btn-banner-focus { background: #ffffff; color: #991b1b; border: none; padding: 4px 10px; border-radius: 5px; font-weight: 800; font-size: 0.72rem; cursor: pointer; transition: transform 0.2s; }
+        .btn-banner-focus:hover { transform: scale(1.05); }
+
+        /* Tactical Dark Map Tile Filter (Bebas API Key & Tanpa Watermark) */
+        .tactical-dark-tile { filter: invert(100%) hue-rotate(190deg) brightness(85%) contrast(115%) saturate(40%); }
+
+        /* Map Layer Switcher Control */
+        .map-layer-switch { position: absolute; top: 14px; right: 14px; z-index: 1500; background: rgba(15, 23, 42, 0.9); border: 1px solid #334155; border-radius: 8px; padding: 6px; display: flex; gap: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .btn-map-mode { background: #1e293b; border: 1px solid #334155; color: #94a3b8; font-size: 0.7rem; font-weight: 600; padding: 4px 8px; border-radius: 5px; cursor: pointer; transition: all 0.2s; }
+        .btn-map-mode.active { background: #0284c7; color: #ffffff; border-color: #38bdf8; }
+
+        .live-ticker { padding: 8px 16px; background: #0b0f19; border-top: 1px solid #1f2937; font-size: 0.72rem; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; }
+
+        /* Patient Detail Modal Drawer */
+        .drawer-overlay { position: fixed; inset: 0; background: rgba(11, 15, 25, 0.7); backdrop-filter: blur(4px); display: none; justify-content: flex-end; z-index: 2100; }
+        .drawer-overlay.active { display: flex; animation: fadeIn 0.2s; }
+        .drawer-panel { width: 380px; max-width: 90vw; background: #111827; height: 100%; border-left: 1px solid #1f2937; padding: 20px; display: flex; flex-direction: column; gap: 16px; box-shadow: -10px 0 30px rgba(0,0,0,0.6); overflow-y: auto; }
+        .drawer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1f2937; padding-bottom: 12px; }
+        .drawer-header h2 { font-size: 1.1rem; color: #38bdf8; font-weight: 700; margin: 0; }
+        .drawer-close { background: transparent; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer; }
+        .drawer-close:hover { color: #ef4444; }
+        .btn-evac { padding: 8px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
+        .btn-evac-dispatch { background: #d97706; color: #ffffff; }
+        .btn-evac-dispatch:hover { background: #b45309; }
+        .btn-evac-done { background: #059669; color: #ffffff; }
+        .btn-evac-done:hover { background: #047857; }
+        .btn-evac-reset { background: #374151; color: #cbd5e1; }
+        .btn-evac-reset:hover { background: #4b5563; }
+
+
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Operasi Posko -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-header-top">
+                <h1><span>VITA-Link GIS</span></h1>
+                <span id="conn-status" class="connection-badge conn-offline">Offline</span>
+            </div>
+            <p>Sistem Pemantau Cerdas LoRa • Triage Medis & Evakuasi SAR</p>
+            <div class="header-controls">
+                <button id="btn-audio-toggle" class="btn-ctrl active" onclick="toggleAudioAlarm()">
+                    <span id="audio-text">Sirine: ON</span>
+                </button>
+                <button class="btn-ctrl" onclick="focusBaseStation()">
+                    ⛺ Posko Induk
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Interaktif Triage -->
+        <div class="status-summary">
+            <div class="summary-box red" id="flt-red" onclick="setTriageFilter('red')">
+                <span class="summary-num" id="cnt-red">0</span>Kritis
+            </div>
+            <div class="summary-box yellow" id="flt-yellow" onclick="setTriageFilter('yellow')">
+                <span class="summary-num" id="cnt-yellow">0</span>Sedang
+            </div>
+            <div class="summary-box green" id="flt-green" onclick="setTriageFilter('green')">
+                <span class="summary-num" id="cnt-green">0</span>Stabil
+            </div>
+            <div class="summary-box total active" id="flt-all" onclick="setTriageFilter('all')">
+                <span class="summary-num" id="cnt-total">0</span>Semua
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar-wrap">
+            <input type="text" id="search-input" class="search-input" placeholder="Cari nama korban atau ID gelang..." oninput="handleSearch(this.value)" />
+            <span class="filter-badge" id="filter-status-text">Semua Korban</span>
+        </div>
+
+
+        <!-- Daftar Korban -->
+        <div class="victim-list" id="victim-list"></div>
+
+        <div class="live-ticker">
+            <span id="ticker-text">Menghubungkan ke WebSocket Gateway...</span>
+            <span id="last-update">-</span>
+        </div>
+    </div>
+
+    <!-- Peta & Kontrol Peta -->
+    <div id="map-container">
+        <!-- Floating Siren Banner -->
+        <div id="floating-siren" class="floating-siren-banner">
+            <span class="badge-darurat">DARURAT</span>
+            <span id="siren-message">PERINGATAN KRITIS TERDETEKSI!</span>
+            <button id="siren-btn-focus" class="btn-banner-focus">LOKASI</button>
+        </div>
+
+        <!-- Map Layer Switcher -->
+        <div class="map-layer-switch">
+            <button class="btn-map-mode active" id="btn-tile-dark" onclick="setMapTile('dark')">Tactical Dark</button>
+            <button class="btn-map-mode" id="btn-tile-osm" onclick="setMapTile('osm')">Standard</button>
+            <button class="btn-map-mode" id="btn-tile-sat" onclick="setMapTile('satellite')">Satelit</button>
+        </div>
+
+        <div id="map"></div>
+    </div>
+
+    <!-- Patient Detail Drawer -->
+    <div id="drawer-modal" class="drawer-overlay" onclick="if(event.target === this) closeDrawer()">
+        <div class="drawer-panel">
+            <div class="drawer-header">
+                <h2>Detail Korban & Aksi</h2>
+                <button class="drawer-close" onclick="closeDrawer()">&times;</button>
+            </div>
+            <div id="drawer-content" style="display: flex; flex-direction: column; gap: 14px;">
+                <!-- Konten Drawer di-inject via JS -->
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ==========================================
+        // KOORDINAT POSKO BASE STATION & PETA
+        // ==========================================
+        const BASE_STATION = {
+            name: "Posko Induk SAR VITA-Link (Gateway LoRa)",
+            lat: -6.3620,
+            lng: 106.8270
+        };
+
+        const map = L.map('map').setView([BASE_STATION.lat, BASE_STATION.lng], 16);
+
+        // Tile Layers (Bebas API Key & Tanpa Watermark)
+        const tileLayers = {
+            dark: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors | VITA-Link FTUI',
+                maxZoom: 19,
+                className: 'tactical-dark-tile'
+            }),
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors | VITA-Link FTUI',
+                maxZoom: 19
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles © Esri | VITA-Link FTUI',
+                maxZoom: 19
+            })
+        };
+
+        let currentTile = 'dark';
+        tileLayers.dark.addTo(map);
+
+        function setMapTile(type) {
+            map.removeLayer(tileLayers[currentTile]);
+            tileLayers[type].addTo(map);
+            currentTile = type;
+
+            document.getElementById('btn-tile-dark').classList.toggle('active', type === 'dark');
+            document.getElementById('btn-tile-osm').classList.toggle('active', type === 'osm');
+            document.getElementById('btn-tile-sat').classList.toggle('active', type === 'satellite');
+        }
+
+        // Marker Posko Induk SAR
+        const baseIcon = L.divIcon({
+            html: `<div style="background:#0284c7; border:2px solid #ffffff; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.1rem; box-shadow:0 0 15px rgba(2,132,199,0.8);">⛺</div>`,
+            className: 'base-station-marker',
+            iconSize: [34, 34],
+            iconAnchor: [17, 17]
+        });
+
+        const baseMarker = L.marker([BASE_STATION.lat, BASE_STATION.lng], { icon: baseIcon }).addTo(map);
+        baseMarker.bindPopup(`
+            <div style="color:#0f172a; font-size:0.85rem;">
+                <b style="font-size:0.95rem; color:#0284c7;">⛺ ${BASE_STATION.name}</b><br>
+                <span>Pusat Komando & Gateway Receiver LoRa 915 MHz</span><br>
+                <span style="font-size:0.75rem; color:#64748b;">Koordinat: ${BASE_STATION.lat}, ${BASE_STATION.lng}</span>
+            </div>
+        `);
+
+        // Lingkaran Jangkauan LoRa (Radius 1000m)
+        const loraRadius = L.circle([BASE_STATION.lat, BASE_STATION.lng], {
+            radius: 1000,
+            color: '#38bdf8',
+            weight: 1.5,
+            dashArray: '6, 6',
+            fillColor: '#0284c7',
+            fillOpacity: 0.07
+        }).addTo(map);
+
+        function focusBaseStation() {
+            map.flyTo([BASE_STATION.lat, BASE_STATION.lng], 16, { duration: 0.8 });
+            baseMarker.openPopup();
+        }
+
+        // ==========================================
+        // SISTEM AUDIO ALARM (WEB AUDIO API SYNTHESIZER)
+        // ==========================================
+        let audioAlarmEnabled = localStorage.getItem('vitalink_audio_alarm') !== 'false';
+        let audioCtx = null;
+        let lastEmergencyId = null;
+
+        function updateAudioUI() {
+            const btn = document.getElementById('btn-audio-toggle');
+            const text = document.getElementById('audio-text');
+            if (audioAlarmEnabled) {
+                btn.className = 'btn-ctrl active';
+                text.innerText = 'Sirine: ON';
+            } else {
+                btn.className = 'btn-ctrl';
+                text.innerText = 'Sirine: MUTE';
+            }
+        }
+        updateAudioUI();
+
+        function toggleAudioAlarm() {
+            audioAlarmEnabled = !audioAlarmEnabled;
+            localStorage.setItem('vitalink_audio_alarm', audioAlarmEnabled ? 'true' : 'false');
+            updateAudioUI();
+            if (audioAlarmEnabled) playSirenTone();
+        }
+
+        function playSirenTone() {
+            if (!audioAlarmEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                // Nada sirine dual-tone 880Hz -> 587Hz
+                osc.frequency.setValueAtTime(880, now);
+                osc.frequency.setValueAtTime(587, now + 0.15);
+                osc.frequency.setValueAtTime(880, now + 0.3);
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.45);
+            } catch (e) {
+                console.warn('AudioContext error:', e);
+            }
+        }
+
+        // ==========================================
+        // STATE & FILTER LOGIC
+        // ==========================================
+        const colorMap = { red: '#ef4444', yellow: '#f59e0b', green: '#10b981', black: '#64748b' };
+        let victims = [];
+        const markers = {};
+        let activeFilter = 'all';
+        let searchQuery = '';
+
+        // Hitung jarak Haversine (meter) & Arah Mata Angin
+        function calculateDistanceAndBearing(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const phi1 = lat1 * Math.PI / 180;
+            const phi2 = lat2 * Math.PI / 180;
+            const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+            const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+            const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                      Math.cos(phi1) * Math.cos(phi2) *
+                      Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = Math.round(R * c);
+
+            // Bearing
+            const y = Math.sin(deltaLambda) * Math.cos(phi2);
+            const x = Math.cos(phi1) * Math.sin(phi2) -
+                      Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+            let brng = Math.atan2(y, x) * 180 / Math.PI;
+            brng = (brng + 360) % 360;
+
+            const directions = ['Utara', 'Timur Laut', 'Timur', 'Tenggara', 'Selatan', 'Barat Daya', 'Barat', 'Barat Laut'];
+            const idx = Math.round(brng / 45) % 8;
+            return { distance, direction: directions[idx] };
+        }
+
+        function setTriageFilter(filter) {
+            activeFilter = filter;
+            ['red', 'yellow', 'green', 'all'].forEach(f => {
+                const el = document.getElementById(`flt-${f}`);
+                if (el) el.classList.toggle('active', f === filter);
+            });
+
+            const filterTextMap = {
+                all: 'Semua Korban',
+                red: 'Hanya Kritis (Merah)',
+                yellow: 'Hanya Sedang (Kuning)',
+                green: 'Hanya Stabil (Hijau)'
+            };
+            document.getElementById('filter-status-text').innerText = filterTextMap[filter] || 'Filter Aktif';
+            renderDashboard();
+        }
+
+        function handleSearch(val) {
+            searchQuery = val.toLowerCase().trim();
+            renderDashboard();
+        }
+
+        // Evaluasi tanda vital per parameter
+        function evaluateMetrics(v) {
+            let spo2Class = 'val-green';
+            let bpmClass = 'val-green';
+            let tempClass = 'val-green';
+            let cautions = [];
+
+            let isHw = v.is_hardware === true;
+            let maxOk = isHw ? (v.max30102_ok === true) : true;
+            let fingerOk = isHw ? (v.finger === true) : true;
+            let mlxOk = isHw ? (v.mlx90614_ok === true) : true;
+            let adxlOk = isHw ? (v.adxl345_ok === true) : true;
+            let isManualTemp = isHw ? (v.temp_manual === true) : false;
+
+            // 1. SpO2
+            let spo2Text = v.spo2 + '%';
+            if (isHw && (!maxOk || v.spo2 === 0 || v.spo2 === null)) {
+                spo2Class = 'val-gray';
+                spo2Text = 'Belum Terbaca';
+                cautions.push('Sensor MAX30102: Belum terpasang di pin 21/22');
+            } else if (isHw && !fingerOk) {
+                spo2Class = 'val-yellow';
+                spo2Text = 'Tempelkan Jari';
+                cautions.push('Sensor MAX30102: Tempelkan jari di kaca sensor');
+            } else if (v.spo2 < 85) {
+                spo2Class = 'val-red';
+                cautions.push(`SpO2 Kritis (${v.spo2}% < 85%) - Hipoksia Berat`);
+            } else if (v.spo2 < 94) {
+                spo2Class = 'val-yellow';
+                cautions.push(`SpO2 Rendah (${v.spo2}%) - Pengawasan Oksigen`);
+            }
+
+            // 2. BPM
+            let bpmText = v.bpm + ' BPM';
+            if (isHw && (!maxOk || v.bpm === 0 || v.bpm === null)) {
+                bpmClass = 'val-gray';
+                bpmText = 'Belum Terbaca';
+                cautions.push('Sensor MAX30102: Nadi belum terbaca');
+            } else if (isHw && !fingerOk) {
+                bpmClass = 'val-yellow';
+                bpmText = 'Tempelkan Jari';
+                cautions.push('Sensor MAX30102: Menunggu deteksi denyut nadi');
+            } else if (v.bpm > 130) {
+                bpmClass = 'val-red';
+                cautions.push(`Takikardia Berat (${v.bpm} BPM > 130)`);
+            } else if (v.bpm < 40) {
+                bpmClass = 'val-red';
+                cautions.push(`Bradikardia Berat (${v.bpm} BPM < 40)`);
+            } else if (v.bpm > 100) {
+                bpmClass = 'val-yellow';
+                cautions.push(`Takikardia Sedang (${v.bpm} BPM > 100)`);
+            }
+
+            // 3. Suhu Tubuh
+            let tempText = v.temp + ' °C';
+            if (isHw && !mlxOk && !isManualTemp && (v.temp === 0 || v.temp === 36.6)) {
+                tempClass = 'val-gray';
+                tempText = 'Belum Terbaca';
+                cautions.push('Sensor Suhu MLX90614: Belum aktif');
+            } else if (isHw && isManualTemp) {
+                tempText = v.temp + ' °C (Manual)';
+            } else if (v.temp > 39.0) {
+                tempClass = 'val-red';
+                cautions.push(`Demam Tinggi (${v.temp}°C > 39.0°C)`);
+            } else if (v.temp > 38.0) {
+                tempClass = 'val-yellow';
+                cautions.push(`Demam Ringan (${v.temp}°C > 38.0°C)`);
+            } else if (v.temp > 0 && v.temp < 35.5) {
+                tempClass = 'val-yellow';
+                cautions.push(`Hipotermia (${v.temp}°C < 35.5°C)`);
+            }
+
+            // 4. Man-Down
+            if (v.manDown) {
+                cautions.push(`ALARM JATUH: Man-Down / Benturan Keras Terdeteksi!`);
+            } else if (isHw && !adxlOk) {
+                cautions.push(`Akselerometer ADXL345: Belum terdeteksi di pin 21/22`);
+            }
+
+            // 5. GPS
+            if (isHw && !v.gps_fixed) {
+                cautions.push(`GPS NEO-6M: Menunggu 3D lock satelit`);
+            }
+
+            if (cautions.length === 0) {
+                cautions.push(`Seluruh tanda vital dalam batas normal.`);
+            }
+
+            return { spo2Class, bpmClass, tempClass, spo2Text, bpmText, tempText, cautions };
+        }
+
+        // ==========================================
+        // RENDER DASHBOARD & FILTERING
+        // ==========================================
+        function renderDashboard(flashDeviceId = null) {
+            const listContainer = document.getElementById('victim-list');
+            listContainer.innerHTML = '';
+
+            let cntRed = 0, cntYellow = 0, cntGreen = 0;
+            let emergencyVictim = null;
+
+            victims.forEach(v => {
+                if (v.status === 'red') cntRed++;
+                else if (v.status === 'yellow') cntYellow++;
+                else if (v.status === 'green') cntGreen++;
+
+                if ((v.manDown || v.status === 'red') && !emergencyVictim) {
+                    emergencyVictim = v;
+                }
+            });
+
+            // Update Emergency Siren Banner
+            const sirenBanner = document.getElementById('floating-siren');
+            if (emergencyVictim) {
+                sirenBanner.classList.add('active');
+                const reason = emergencyVictim.manDown ? "ALARM JATUH (MAN-DOWN) TERDETEKSI!" : "TANDA VITAL KRITIS!";
+                document.getElementById('siren-message').innerText = `[${emergencyVictim.id}] ${emergencyVictim.name} — ${reason}`;
+                document.getElementById('siren-btn-focus').onclick = () => focusVictim(emergencyVictim.id);
+
+                if (emergencyVictim.id !== lastEmergencyId) {
+                    playSirenTone();
+                    lastEmergencyId = emergencyVictim.id;
+                }
+            } else {
+                sirenBanner.classList.remove('active');
+                lastEmergencyId = null;
+            }
+
+            // Filter Daftar
+            const filteredVictims = victims.filter(v => {
+                const matchFilter = activeFilter === 'all' || v.status === activeFilter;
+                const matchSearch = searchQuery === '' ||
+                    v.name.toLowerCase().includes(searchQuery) ||
+                    v.id.toLowerCase().includes(searchQuery) ||
+                    (v.device && v.device.toLowerCase().includes(searchQuery));
+                return matchFilter && matchSearch;
+            });
+
+            // Sinkronisasi Marker Peta
+            victims.forEach(v => {
+                const isVisible = activeFilter === 'all' || v.status === activeFilter;
+                const isSearchMatch = searchQuery === '' ||
+                    v.name.toLowerCase().includes(searchQuery) ||
+                    v.id.toLowerCase().includes(searchQuery);
+
+                if (!markers[v.id]) {
+                    const marker = L.circleMarker([v.lat, v.lng], {
+                        color: '#ffffff',
+                        weight: 2,
+                        fillColor: colorMap[v.status] || '#64748b',
+                        fillOpacity: 0.9,
+                        radius: 12
+                    }).addTo(map);
+
+                    marker.on('click', () => openDrawer(v.id));
+                    markers[v.id] = marker;
+                } else {
+                    markers[v.id].setLatLng([v.lat, v.lng]);
+                    markers[v.id].setStyle({ fillColor: colorMap[v.status] || '#64748b' });
+                }
+
+                if (isVisible && isSearchMatch) {
+                    if (!map.hasLayer(markers[v.id])) markers[v.id].addTo(map);
+                } else {
+                    if (map.hasLayer(markers[v.id])) map.removeLayer(markers[v.id]);
+                }
+
+                const distInfo = calculateDistanceAndBearing(BASE_STATION.lat, BASE_STATION.lng, v.lat, v.lng);
+                const evalRes = evaluateMetrics(v);
+
+                markers[v.id].bindPopup(`
+                    <div style="font-size:0.85rem; color:#1e293b; min-width:220px;">
+                        <b style="font-size:1rem;">${v.name}</b> (${v.id})<br>
+                        <span style="display:inline-block; margin:4px 0; font-weight:bold; color:${colorMap[v.status]};">${v.statusText}</span><br>
+                        <span style="font-size:0.75rem; color:#0284c7; font-weight:600;">Jarak: ${distInfo.distance} m ke ${distInfo.direction} dari Posko</span><br>
+                        SpO2: <b class="${evalRes.spo2Class}">${evalRes.spo2Text}</b> | Nadi: <b class="${evalRes.bpmClass}">${evalRes.bpmText}</b><br>
+                        Suhu: <b class="${evalRes.tempClass}">${evalRes.tempText}</b> | LoRa: <b>${v.rssi} dBm</b><br>
+                        <hr style="margin:6px 0; border:0; border-top:1px solid #cbd5e1;">
+                        <button onclick="openDrawer('${v.id}')" style="width:100%; padding:5px; background:#0284c7; color:#fff; border:none; border-radius:4px; font-weight:bold; cursor:pointer; font-size:0.75rem;">Detail & Aksi</button>
+                    </div>
+                `);
+            });
+
+            // Render Kartu di Sidebar
+            if (filteredVictims.length === 0) {
+                listContainer.innerHTML = `
+                    <div style="text-align:center; padding:30px; color:#64748b; font-size:0.8rem;">
+                        Tidak ada korban yang sesuai kriteria filter/pencarian.
+                    </div>
+                `;
+            } else {
+                filteredVictims.forEach(v => {
+                    const evalRes = evaluateMetrics(v);
+                    const distInfo = calculateDistanceAndBearing(BASE_STATION.lat, BASE_STATION.lng, v.lat, v.lng);
+
+                    let evacTag = '';
+                    if (v.evacuation_status === 'DISPATCHED') evacTag = '<span class="tag-evac tag-dispatched">DISPATCHED</span>';
+                    else if (v.evacuation_status === 'EVACUATED') evacTag = '<span class="tag-evac tag-evacuated">EVACUATED</span>';
+
+                    const card = document.createElement('div');
+                    card.className = `card ${v.status} ${flashDeviceId === v.id ? 'flash' : ''}`;
+                    card.id = `card-${v.id}`;
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <div>
+                                <div class="card-title">${v.name} ${evacTag}</div>
+                                <div class="card-subtitle">
+                                    <span>${v.id}</span> • <span>${v.device || 'LoRa Node'}</span>
+                                    ${v.is_hardware ? '<span style="background:#0284c7; color:#ffffff; font-weight:bold; padding:1px 5px; border-radius:4px; font-size:0.62rem;">HARDWARE COM23</span>' : ''}
+                                    ${v.gps_fixed ? '<span style="background:#10b981; color:#ffffff; font-weight:bold; padding:1px 5px; border-radius:4px; font-size:0.62rem;">GPS FIX</span>' : (v.is_hardware ? '<span style="background:#64748b; color:#ffffff; font-size:0.62rem; padding:1px 5px; border-radius:4px;">GPS SEARCHING</span>' : '')}
+                                </div>
+                            </div>
+                            <span class="badge ${v.status}">${v.status.toUpperCase()}</span>
+                        </div>
+
+                        <div class="distance-info">
+                            <span>Jarak: ${distInfo.distance} m ke ${distInfo.direction} dari Posko</span>
+                        </div>
+
+                        <div class="vital-grid">
+                            <div class="vital-cell">
+                                <span class="vital-label">SpO2</span>
+                                <span class="vital-val ${evalRes.spo2Class}">${evalRes.spo2Text}</span>
+                            </div>
+                            <div class="vital-cell">
+                                <span class="vital-label">BPM</span>
+                                <span class="vital-val ${evalRes.bpmClass}">${evalRes.bpmText}</span>
+                            </div>
+                            <div class="vital-cell">
+                                <span class="vital-label">Suhu</span>
+                                <span class="vital-val ${evalRes.tempClass}">${evalRes.tempText}</span>
+                            </div>
+                            <div class="vital-cell">
+                                <span class="vital-label">LoRa</span>
+                                <span class="vital-val">${v.rssi} dBm</span>
+                            </div>
+                        </div>
+
+                        <div class="caution-box ${v.status}">
+                            ${evalRes.cautions.map(c => `<div>${c}</div>`).join('')}
+                        </div>
+
+                        <div class="card-actions">
+                            <button class="btn-card-detail" onclick="event.stopPropagation(); openDrawer('${v.id}')">
+                                Detail & Aksi
+                            </button>
+                        </div>
+                    `;
+
+                    card.onclick = () => focusVictim(v.id);
+                    listContainer.appendChild(card);
+                });
+            }
+
+            document.getElementById('cnt-red').innerText = cntRed;
+            document.getElementById('cnt-yellow').innerText = cntYellow;
+            document.getElementById('cnt-green').innerText = cntGreen;
+            document.getElementById('cnt-total').innerText = victims.length;
+        }
+
+        function focusVictim(id) {
+            const v = victims.find(item => item.id === id);
+            if (v && markers[id]) {
+                map.flyTo([v.lat, v.lng], 18, { duration: 0.8 });
+                markers[id].openPopup();
+            }
+        }
+
+        // ==========================================
+        // DRAWER DETAIL PASIEN & STATUS EVAKUASI
+        // ==========================================
+        function openDrawer(id) {
+            const v = victims.find(item => item.id === id);
+            if (!v) return;
+
+            const drawerModal = document.getElementById('drawer-modal');
+            const content = document.getElementById('drawer-content');
+            const evalRes = evaluateMetrics(v);
+            const distInfo = calculateDistanceAndBearing(BASE_STATION.lat, BASE_STATION.lng, v.lat, v.lng);
+
+            content.innerHTML = `
+                <div style="background:#1f2937; padding:14px; border-radius:8px; border-left:4px solid ${colorMap[v.status]};">
+                    <div style="font-size:1.1rem; font-weight:bold; color:#fff;">${v.name}</div>
+                    <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">ID: ${v.id} • ${v.device || 'Gelang LoRa'}</div>
+                    <div style="margin-top:6px; font-size:0.8rem; font-weight:bold; color:${colorMap[v.status]};">${v.statusText}</div>
+                </div>
+
+                <div style="background:#1f2937; padding:12px; border-radius:8px;">
+                    <div style="font-size:0.75rem; font-weight:bold; color:#38bdf8; margin-bottom:6px;">LOKASI GEOSPASIAL</div>
+                    <div style="font-size:0.8rem; color:#e2e8f0;">Koordinat: <b>${v.lat.toFixed(5)}, ${v.lng.toFixed(5)}</b></div>
+                    <div style="font-size:0.8rem; color:#34d399; margin-top:2px;">Jarak Posko: <b>${distInfo.distance} meter</b> (${distInfo.direction})</div>
+                    <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px;">Kekuatan Radio LoRa: <b>${v.rssi} dBm</b></div>
+                </div>
+
+                <div style="background:#1f2937; padding:12px; border-radius:8px;">
+                    <div style="font-size:0.75rem; font-weight:bold; color:#38bdf8; margin-bottom:8px;">TANDA VITAL TERKINI</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.8rem;">
+                        <div style="background:#111827; padding:8px; border-radius:6px;">
+                            <span style="font-size:0.7rem; color:#94a3b8;">SpO2</span><br>
+                            <b class="${evalRes.spo2Class}">${evalRes.spo2Text}</b>
+                        </div>
+                        <div style="background:#111827; padding:8px; border-radius:6px;">
+                            <span style="font-size:0.7rem; color:#94a3b8;">Detak Jantung</span><br>
+                            <b class="${evalRes.bpmClass}">${evalRes.bpmText}</b>
+                        </div>
+                        <div style="background:#111827; padding:8px; border-radius:6px;">
+                            <span style="font-size:0.7rem; color:#94a3b8;">Suhu Tubuh</span><br>
+                            <b class="${evalRes.tempClass}">${evalRes.tempText}</b>
+                        </div>
+                        <div style="background:#111827; padding:8px; border-radius:6px;">
+                            <span style="font-size:0.7rem; color:#94a3b8;">Man-Down</span><br>
+                            <b>${v.manDown ? 'JATUH (BAHAYA)' : 'Normal'}</b>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:#1f2937; padding:12px; border-radius:8px;">
+                    <div style="font-size:0.75rem; font-weight:bold; color:#38bdf8; margin-bottom:8px;">KONTROL STATUS EVAKUASI</div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <button class="btn-evac btn-evac-dispatch" onclick="updateEvacStatus('${v.id}', 'DISPATCHED')">
+                            Kirim Tim Medis Lapangan (Dispatched)
+                        </button>
+                        <button class="btn-evac btn-evac-done" onclick="updateEvacStatus('${v.id}', 'EVACUATED')">
+                            Korban Berhasil Dievakuasi (Evacuated)
+                        </button>
+                        <button class="btn-evac btn-evac-reset" onclick="updateEvacStatus('${v.id}', 'RESET')">
+                            Reset Status Operasi
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            drawerModal.classList.add('active');
+        }
+
+        function closeDrawer() {
+            document.getElementById('drawer-modal').classList.remove('active');
+        }
+
+        async function updateEvacStatus(id, action) {
+            try {
+                const res = await fetch(`/api/victims/${id}/action`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    const v = victims.find(item => item.id === id);
+                    if (v) v.evacuation_status = action;
+                    renderDashboard(id);
+                    openDrawer(id);
+                }
+            } catch (err) {
+                console.error('Gagal update status evakuasi:', err);
+            }
+        }
+
+        // ==========================================
+        // REAL-TIME WEBSOCKET STREAMING CLIENT
+        // ==========================================
+        function setupWebSocket() {
+            const statusBadge = document.getElementById('conn-status');
+            const tickerText = document.getElementById('ticker-text');
+            const lastUpdate = document.getElementById('last-update');
+
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsHost = window.location.host || 'localhost:8000';
+            const wsUrl = `${wsProtocol}//${wsHost}/ws/telemetry`;
+
+            const socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                statusBadge.className = 'connection-badge conn-live';
+                statusBadge.innerHTML = '<span class="dot-pulse"></span> LIVE WS';
+                tickerText.innerText = 'Tersambung ke Live Telemetry Stream';
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const now = new Date().toLocaleTimeString();
+                lastUpdate.innerText = now;
+
+                if (data.type === 'INITIAL_STATE' || data.type === 'TELEMETRY_UPDATE') {
+                    victims = data.all_victims;
+                    if (data.victim) {
+                        tickerText.innerText = `[${now}] ${data.victim.id} (${data.victim.name}) -> Update Masuk`;
+                    }
+                    renderDashboard(data.updated_device);
+                }
+            };
+
+            socket.onclose = () => {
+                statusBadge.className = 'connection-badge conn-offline';
+                statusBadge.innerText = 'Offline (Reconnecting...)';
+                tickerText.innerText = 'Koneksi terputus. Mencoba rekoneksi dalam 3 detik...';
+                setTimeout(setupWebSocket, 3000);
+            };
+
+            socket.onerror = () => {
+                socket.close();
+            };
+        }
+
+        setupWebSocket();
+
+        // Tutup drawer dengan tombol Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeDrawer();
+            }
+        });
+    </script>
+</body>
+</html>

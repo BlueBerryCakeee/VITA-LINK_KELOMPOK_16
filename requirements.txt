@@ -1,0 +1,6 @@
+# Dependensi Python untuk VITA-Link Gateway & Server
+pyserial>=3.5
+requests>=2.28.0
+fastapi>=0.100.0
+uvicorn>=0.22.0
+websockets>=11.0.0
