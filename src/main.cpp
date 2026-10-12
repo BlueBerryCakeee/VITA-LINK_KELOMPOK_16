@@ -2,19 +2,42 @@
  * Proyek: VITA-Link (Smart Monitoring Bracelet System)
  * Kelompok: 16 - Desain Proyek Teknik Komputer & Elektro FTUI
  * Firmware Node Gelang: ESP32 + NEO-6M + ADXL345 + MAX30102 + MLX90614
+ * Kompatibel dengan: Arduino IDE & PlatformIO
  *
- * Konfigurasi Pin:
- * 1. GPS NEO-6M   : VCC -> VIN (5V), GND -> GND, TX GPS -> Pin 16 (RX2 ESP32), RX GPS -> Pin 17 (TX2 ESP32)
- * 2. ADXL345      : VCC -> 3V3, GND -> GND, CS -> 3V3, SDO -> GND, SDA -> Pin 21, SCL -> Pin 22
- * 3. MAX30102     : VIN -> 3V3/5V, GND -> GND, SDA -> Pin 21, SCL -> Pin 22, INT -> NC
- * 4. MLX90614     : VIN -> 3V3, GND -> GND, SDA -> Pin 21, SCL -> Pin 22
- * 5. Tombol BOOT  : GPIO 0 (Pull-up internal)
- * 6. Port USB     : GPIO 1 (TX0) & GPIO 3 (RX0) khusus koneksi serial PC
+ * PANDUAN PENGGUNAAN ARDUINO IDE:
+ * 1. Board: "ESP32 Dev Module" (dari board manager esp32 by Espressif Systems)
+ * 2. Port: Pilih port COM ESP32 Anda
+ * 3. Serial Monitor: Baudrate 115200 bps
+ * 4. TIDAK PERLU install library eksternal (driver sensor ditulis bare-metal I2C register Wire.h)
+ *
+ * KONFIGURASI WIRING PIN HARDWARE:
+ * 1. GPS NEO-6M   : VCC -> VIN (5V) / 3V3, GND -> GND
+ *                   TX GPS -> GPIO 16 (RX2 ESP32)
+ *                   RX GPS -> GPIO 17 (TX2 ESP32)
+ * 2. ADXL345      : VCC -> 3V3, GND -> GND
+ *                   CS -> 3V3 (Wajib agar aktif mode I2C)
+ *                   SDO -> GND (Menetapkan alamat I2C ke 0x53)
+ *                   SDA -> GPIO 21, SCL -> GPIO 22
+ * 3. MAX30102     : VIN -> 3V3 atau 5V, GND -> GND
+ *                   SDA -> GPIO 21, SCL -> GPIO 22, INT -> Tidak terhubung (NC)
+ * 4. MLX90614     : VIN -> 3V3, GND -> GND
+ *                   SDA -> GPIO 21, SCL -> GPIO 22
+ * 5. Tombol BOOT  : GPIO 0 (Tombol fisik built-in ESP32 untuk simulasi Man-Down / Darurat)
+ * 6. Port USB     : GPIO 1 (TX0) & GPIO 3 (RX0) - Serial 115200 ke laptop / serial_bridge.py
+ * 7. LoRa SX1276  : VCC -> 3V3 (Wajib 3.3V!), GND -> GND
+ *                   SCK  -> GPIO 18 (SCK VSPI)
+ *                   MISO -> GPIO 19 (MISO VSPI)
+ *                   MOSI -> GPIO 23 (MOSI VSPI)
+ *                   NSS  -> GPIO 5  (CS / Chip Select)
+ *                   RST  -> GPIO 2  (Reset LoRa)
+ *                   DIO0 -> GPIO 4  (Interrupt LoRa)
+ *                   Frekuensi: 915 MHz (SDPPI Indonesia)
  */
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <math.h>
 #include <driver/gpio.h>
 
@@ -35,7 +58,7 @@ int gps_baud_idx = 0;
 #define I2C_SDA_PIN 21
 #define I2C_SCL_PIN 22
 
-// Alamat I2C
+// Alamat I2C Sensor
 #define ADXL345_I2C_ADDR 0x53
 #define MAX_I2C_ADDR 0x57
 #define MLX_I2C_ADDR 0x5A
@@ -70,7 +93,7 @@ float total_accel_g = 1.0;
 float prev_accel_g = 1.0;
 unsigned long freeFallTime = 0;
 
-// Data Telemetri Pasien / Korban (Default 0 jika sensor belum terpasang / terbaca)
+// Data Telemetri Pasien / Korban
 float current_temperature = 0.0;
 bool  temp_manual_input   = false;
 float current_spo2        = 0.0;
@@ -80,7 +103,159 @@ unsigned long manDownUntil = 0;
 
 // Timer Loop
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 2000; // Kirim tiap 2 detik ke Web GIS
+const unsigned long sendInterval = 2000; // Kirim tiap 2 detik ke Web GIS Dashboard
+
+// ==========================================
+// 1b. KONFIGURASI & DRIVER LORA SX1276/SX1278 (SPI)
+// Menggunakan Register Bare-Metal (Tanpa Eksternal Library)
+// Sesuai Skematik EasyEDA / KiCad Kelompok 16
+// ==========================================
+#define LORA_SCK_PIN   18  // VSPI SCK
+#define LORA_MISO_PIN  19  // VSPI MISO
+#define LORA_MOSI_PIN  23  // VSPI MOSI
+#define LORA_SS_PIN    5   // NSS / Chip Select (CS)
+#define LORA_RST_PIN   2   // Reset pin
+#define LORA_DIO0_PIN  4   // DIO0 interrupt
+#define LORA_FREQUENCY 915E6 // 915 MHz (Frekuensi Indonesia SDPPI)
+
+// Register Internal SX1276 LoRa
+#define LORA_REG_FIFO                 0x00
+#define LORA_REG_OP_MODE              0x01
+#define LORA_REG_FRF_MSB              0x06
+#define LORA_REG_FRF_MID              0x07
+#define LORA_REG_FRF_LSB              0x08
+#define LORA_REG_PA_CONFIG            0x09
+#define LORA_REG_FIFO_ADDR_PTR        0x0D
+#define LORA_REG_FIFO_TX_BASE_ADDR    0x0E
+#define LORA_REG_FIFO_RX_BASE_ADDR    0x0F
+#define LORA_REG_IRQ_FLAGS            0x12
+#define LORA_REG_MODEM_CONFIG_1       0x1D
+#define LORA_REG_MODEM_CONFIG_2       0x1E
+#define LORA_REG_PREAMBLE_MSB         0x20
+#define LORA_REG_PREAMBLE_LSB         0x21
+#define LORA_REG_PAYLOAD_LENGTH       0x22
+#define LORA_REG_MODEM_CONFIG_3       0x26
+#define LORA_REG_SYNC_WORD            0x39
+#define LORA_REG_DIO_MAPPING_1        0x40
+#define LORA_REG_VERSION              0x42
+
+// Mode Operasi SX1276
+#define LORA_MODE_LONG_RANGE          0x80
+#define LORA_MODE_SLEEP               0x00
+#define LORA_MODE_STDBY               0x01
+#define LORA_MODE_TX                  0x03
+
+bool lora_detected = false;
+uint8_t lora_version = 0;
+unsigned long lora_packet_count = 0;
+
+uint8_t loraReadRegister(uint8_t address) {
+  digitalWrite(LORA_SS_PIN, LOW);
+  SPI.transfer(address & 0x7F);
+  uint8_t val = SPI.transfer(0x00);
+  digitalWrite(LORA_SS_PIN, HIGH);
+  return val;
+}
+
+void loraWriteRegister(uint8_t address, uint8_t val) {
+  digitalWrite(LORA_SS_PIN, LOW);
+  SPI.transfer(address | 0x80);
+  SPI.transfer(val);
+  digitalWrite(LORA_SS_PIN, HIGH);
+}
+
+bool initLoRa() {
+  pinMode(LORA_SS_PIN, OUTPUT);
+  pinMode(LORA_RST_PIN, OUTPUT);
+  digitalWrite(LORA_SS_PIN, HIGH);
+
+  // Pulse Reset Hardware
+  digitalWrite(LORA_RST_PIN, LOW);
+  delay(10);
+  digitalWrite(LORA_RST_PIN, HIGH);
+  delay(10);
+
+  SPI.begin(LORA_SCK_PIN, LORA_MISO_PIN, LORA_MOSI_PIN, LORA_SS_PIN);
+
+  lora_version = loraReadRegister(LORA_REG_VERSION);
+  if (lora_version != 0x12) {
+    Serial.printf("[LORA] Perhatian: Chip ID terbaca 0x%02X (diharapkan 0x12). Modul LoRa belum terdeteksi.\n", lora_version);
+    Serial.println("  -> Pastikan kabel SPI: SCK=18, MISO=19, MOSI=23, NSS=5, RST=2, VCC=3.3V.");
+    lora_detected = false;
+    return false;
+  }
+
+  // Masuk Sleep Mode untuk mengaktifkan LoRa Mode (Bit 7 RegOpMode)
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_SLEEP);
+  delay(10);
+
+  // Set Frekuensi Transmisi (915 MHz)
+  uint64_t frf = ((uint64_t)LORA_FREQUENCY << 19) / 32000000;
+  loraWriteRegister(LORA_REG_FRF_MSB, (uint8_t)(frf >> 16));
+  loraWriteRegister(LORA_REG_FRF_MID, (uint8_t)(frf >> 8));
+  loraWriteRegister(LORA_REG_FRF_LSB, (uint8_t)(frf >> 0));
+
+  // Set Base Address FIFO TX & RX
+  loraWriteRegister(LORA_REG_FIFO_TX_BASE_ADDR, 0x00);
+  loraWriteRegister(LORA_REG_FIFO_RX_BASE_ADDR, 0x00);
+
+  // PA Config: PA_BOOST on, Daya pancar maksimal (~17 dBm)
+  loraWriteRegister(LORA_REG_PA_CONFIG, 0x8F);
+
+  // Modem Config 1: BW 125 kHz (0x70), CR 4/5 (0x02), Explicit Header (0x00) -> 0x72
+  loraWriteRegister(LORA_REG_MODEM_CONFIG_1, 0x72);
+
+  // Modem Config 2: Spreading Factor SF7 (0x70), CRC On (0x04) -> 0x74
+  loraWriteRegister(LORA_REG_MODEM_CONFIG_2, 0x74);
+
+  // Modem Config 3: LNA AGC Auto on (0x04)
+  loraWriteRegister(LORA_REG_MODEM_CONFIG_3, 0x04);
+
+  // Preamble Length (8 simbol)
+  loraWriteRegister(LORA_REG_PREAMBLE_MSB, 0x00);
+  loraWriteRegister(LORA_REG_PREAMBLE_LSB, 0x08);
+
+  // Sync Word standar LoRa (0x12)
+  loraWriteRegister(LORA_REG_SYNC_WORD, 0x12);
+
+  // Masuk ke Standby Mode
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+
+  lora_detected = true;
+  Serial.printf("[LORA] Inisialisasi SX1276 Sukses! Frekuensi: %.1f MHz (SF7, BW 125kHz, CR 4/5, SyncWord 0x12)\n", (double)(LORA_FREQUENCY / 1E6));
+  return true;
+}
+
+bool loraSendPacket(const String& payload) {
+  if (!lora_detected) return false;
+
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+  loraWriteRegister(LORA_REG_FIFO_ADDR_PTR, 0x00);
+
+  int len = payload.length();
+  for (int i = 0; i < len; i++) {
+    loraWriteRegister(LORA_REG_FIFO, (uint8_t)payload[i]);
+  }
+  loraWriteRegister(LORA_REG_PAYLOAD_LENGTH, len);
+
+  // Mode TX
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_TX);
+
+  // Tunggu TX Done (Bit 3 RegIrqFlags)
+  unsigned long start = millis();
+  while ((loraReadRegister(LORA_REG_IRQ_FLAGS) & 0x08) == 0) {
+    if (millis() - start > 400) {
+      loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+      return false; // Timeout
+    }
+    yield();
+  }
+
+  // Clear interrupt TX Done
+  loraWriteRegister(LORA_REG_IRQ_FLAGS, 0x08);
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+  return true;
+}
 
 // ==========================================
 // 2. DRIVER SENSOR ADXL345 (AKSELEROMETER)
@@ -126,7 +301,7 @@ void readADXL345() {
       total_accel_g = new_total;
     }
 
-    // Algoritma Deteksi Jatuh (Free-fall + Benturan / Impact)
+    // Algoritma Deteksi Jatuh (Free-fall < 0.5g diikuti benturan > 2.2g, atau hentakan keras > 2.8g)
     if (total_accel_g < 0.5) {
       freeFallTime = millis();
     }
@@ -134,8 +309,7 @@ void readADXL345() {
         total_accel_g > 2.8) {
       current_man_down = true;
       manDownUntil = millis() + 15000;
-      Serial.println(
-          "\n>>> [ALARM MAN-DOWN: BENTURAN / JATUH TERDETEKSI!] <<<\n");
+      Serial.println("\n>>> [ALARM MAN-DOWN: BENTURAN / JATUH TERDETEKSI!] <<<\n");
     }
   }
 }
@@ -182,52 +356,47 @@ bool initMAXSensor() {
     Wire.endTransmission(true);
   } else {
     // --- Inisialisasi Khusus MAX30102 (Part ID 0x15 / Modul Umum) ---
-    // 1. Soft Reset chip
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x09); // MODE_CONFIG
     Wire.write(0x40); // Reset bit
     Wire.endTransmission(true);
     delay(50);
 
-    // 2. FIFO Configuration (Reg 0x08)
-    // Bit 4 = 1 (FIFO_ROLLOVER_EN): FIFO tidak akan macet saat penuh!
-    // Bit 6:5 = 0b01 (SMP_AVE = 2 samples averaging)
+    // FIFO Configuration: Rollover ON + 2x averaging
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x08);
-    Wire.write(0x30); // Rollover ON + 2x averaging
+    Wire.write(0x30);
     Wire.endTransmission(true);
 
-    // 3. Mode Configuration (Reg 0x09): SpO2 Mode (0x03 = Red + IR)
+    // SpO2 Mode (Red + IR)
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x09);
     Wire.write(0x03);
     Wire.endTransmission(true);
 
-    // 4. SpO2 Configuration (Reg 0x0A):
-    // ADC Range 4096 nA (0x20) + 100 Hz (0x04) + 411 us (0x03) = 0x27
+    // SpO2 Configuration: 4096 nA + 100 Hz + 411 us
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x0A);
     Wire.write(0x27);
     Wire.endTransmission(true);
 
-    // 5. LED Pulse Amplitude (Reg 0x0C = Red, Reg 0x0D = IR)
-    // Nilai 0x32 (~10 mA) agar LED menyala terang namun tidak saturasi fotodioda
+    // LED Amplitude: Red & IR ~10 mA
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x0C);
-    Wire.write(0x32); // Red LED ~10 mA
+    Wire.write(0x32);
     Wire.endTransmission(true);
 
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x0D);
-    Wire.write(0x32); // IR LED ~10 mA
+    Wire.write(0x32);
     Wire.endTransmission(true);
 
-    // 6. Reset FIFO pointers (Reg 0x04, 0x05, 0x06 = 0x00)
+    // Reset FIFO pointers
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x04);
-    Wire.write(0x00); // FIFO_WR_PTR
-    Wire.write(0x00); // OVF_COUNTER
-    Wire.write(0x00); // FIFO_RD_PTR
+    Wire.write(0x00);
+    Wire.write(0x00);
+    Wire.write(0x00);
     Wire.endTransmission(true);
   }
 
@@ -244,7 +413,6 @@ void readMAXSensor() {
   bool got_sample = false;
 
   if (max_part_id == 0x11) {
-    // MAX30100: Baca register 0x05 (FIFO Data)
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x05);
     if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)MAX_I2C_ADDR, (uint8_t)4) == 4) {
@@ -253,7 +421,6 @@ void readMAXSensor() {
       got_sample = true;
     }
   } else {
-    // MAX30102: Baca FIFO Pointers (0x04 WR_PTR, 0x06 RD_PTR) lalu kuras sampel
     Wire.beginTransmission(MAX_I2C_ADDR);
     Wire.write(0x04);
     if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)MAX_I2C_ADDR, (uint8_t)1) >= 1) {
@@ -264,13 +431,11 @@ void readMAXSensor() {
         uint8_t rd_ptr = Wire.read() & 0x1F;
         int num_samples = (wr_ptr - rd_ptr) & 0x1F;
 
-        if (num_samples == 0) {
-          num_samples = 1;
-        }
+        if (num_samples == 0) num_samples = 1;
 
         while (num_samples > 0) {
           Wire.beginTransmission(MAX_I2C_ADDR);
-          Wire.write(0x07); // FIFO Data register di MAX30102
+          Wire.write(0x07);
           if (Wire.endTransmission(false) == 0 && Wire.requestFrom((uint8_t)MAX_I2C_ADDR, (uint8_t)6) == 6) {
             red = ((uint32_t)(Wire.read() & 0x03) << 16) | ((uint32_t)Wire.read() << 8) | Wire.read();
             ir  = ((uint32_t)(Wire.read() & 0x03) << 16) | ((uint32_t)Wire.read() << 8) | Wire.read();
@@ -287,7 +452,6 @@ void readMAXSensor() {
     last_raw_red = red;
   }
 
-  // Ambang deteksi sentuhan jari (MAX30100: > 5000, MAX30102: > 15000)
   uint32_t finger_threshold = (max_part_id == 0x11) ? 5000 : 15000;
   static unsigned long finger_start_time = 0;
 
@@ -306,7 +470,7 @@ void readMAXSensor() {
     float ir_ac = (float)last_raw_ir - ir_dc;
     float red_ac = (float)last_raw_red - red_dc;
 
-    // Deteksi Puncak Gelombang Nadi (Heartbeat Peak Detection)
+    // Deteksi Puncak Nadi (Heartbeat Peak)
     static float prev_ir_ac = 0.0;
     static bool is_rising = false;
     static unsigned long last_beat_time = 0;
@@ -318,15 +482,15 @@ void readMAXSensor() {
       unsigned long now = millis();
       unsigned long interval = now - last_beat_time;
 
-      if (interval >= 350 && interval <= 1500) { // Rentang denyut 40 - 171 BPM
+      if (interval >= 350 && interval <= 1500) { // Rentang 40 - 171 BPM
         float instant_bpm = 60000.0 / (float)interval;
         if (current_bpm == 0) {
           current_bpm = (int)instant_bpm;
         } else {
-          current_bpm = (int)(current_bpm * 0.70 + instant_bpm * 0.30); // Smoothing
+          current_bpm = (int)(current_bpm * 0.70 + instant_bpm * 0.30);
         }
 
-        // Estimasi SpO2 berbasis rasio AC/DC Red vs IR
+        // Estimasi SpO2
         if (ir_dc > 0 && red_dc > 0 && abs(ir_ac) > 5.0) {
           float r = (abs(red_ac) / red_dc) / (abs(ir_ac) / ir_dc);
           float calc_spo2 = 110.0 - 25.0 * r;
@@ -343,8 +507,7 @@ void readMAXSensor() {
     }
     prev_ir_ac = ir_ac;
 
-    // Jika jari sudah menempel lebih dari 1.5 detik tapi belum mendapatkan peak pertama
-    // berikan estimasi fisiologis awal (~76 BPM, 98% SpO2) agar dashboard responsif
+    // Estimasi awal responsif jika jari terdeteksi stabil > 1.5s
     if (current_bpm == 0 && millis() - finger_start_time > 1500) {
       current_bpm = 76;
       current_spo2 = 98.0;
@@ -417,7 +580,7 @@ void processNmeaSentence(String sentence) {
     }
     if (count >= 7) {
       char status = sentence.charAt(commaIndex[1] + 1);
-      if (status == 'A') { // 'A' = Valid Fix
+      if (status == 'A') { // 'A' = Active / Fix Valid
         String latStr = sentence.substring(commaIndex[2] + 1, commaIndex[3]);
         char latDir = sentence.charAt(commaIndex[3] + 1);
         String lngStr = sentence.substring(commaIndex[4] + 1, commaIndex[5]);
@@ -467,18 +630,18 @@ void processNmeaSentence(String sentence) {
 void setup() {
   Serial.begin(115200);
 
-  // 1. Konfigurasi pull-up internal tombol fisik BOOT (GPIO 0)
+  // 1. Pull-up tombol BOOT (GPIO 0)
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
   gpio_pullup_en((gpio_num_t)BOOT_BUTTON_PIN);
   gpio_pulldown_dis((gpio_num_t)BOOT_BUTTON_PIN);
 
-  // 2. Konfigurasi pull-up internal UART GPS (cegah floating saat kabel dilepas)
+  // 2. Pull-up UART GPS
   pinMode(gps_active_rx, INPUT_PULLUP);
   gpio_pullup_en((gpio_num_t)gps_active_rx);
   gpio_pulldown_dis((gpio_num_t)gps_active_rx);
   gpsSerial.begin(gps_current_baud, SERIAL_8N1, gps_active_rx, gps_active_tx);
 
-  // 3. Konfigurasi pull-up internal hardware I2C SEBELUM Wire.begin()
+  // 3. Konfigurasi hardware I2C Pull-up
   pinMode(I2C_SDA_PIN, INPUT_PULLUP);
   pinMode(I2C_SCL_PIN, INPUT_PULLUP);
   gpio_pullup_en((gpio_num_t)I2C_SDA_PIN);
@@ -486,7 +649,7 @@ void setup() {
   gpio_pulldown_dis((gpio_num_t)I2C_SDA_PIN);
   gpio_pulldown_dis((gpio_num_t)I2C_SCL_PIN);
 
-  // Bus recovery 9 clock pulses pada SCL
+  // Bus recovery 9 clock pulses
   pinMode(I2C_SCL_PIN, OUTPUT);
   for (int i = 0; i < 9; i++) {
     digitalWrite(I2C_SCL_PIN, HIGH);
@@ -500,12 +663,11 @@ void setup() {
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN, 100000);
   Wire.setTimeOut(50);
 
-  // Aktifkan kembali pull-up register ESP32 tanpa memanggil pinMode (agar I2C matrix tidak reset)
   gpio_pullup_en((gpio_num_t)I2C_SDA_PIN);
   gpio_pullup_en((gpio_num_t)I2C_SCL_PIN);
   delay(100);
 
-  // Pindai seluruh bus I2C untuk mendeteksi alamat perangkat
+  // Pindai alamat I2C
   Serial.println("\n[I2C SCANNER] Memindai bus I2C pada Pin 21 (SDA) & Pin 22 (SCL)...");
   int found_i2c = 0;
   for (uint8_t addr = 1; addr < 127; addr++) {
@@ -531,11 +693,15 @@ void setup() {
   }
 
   delay(1000);
+
+  // Inisialisasi Modul LoRa SX1276 (SPI)
+  initLoRa();
+
   Serial.println("\n=========================================================================");
-  Serial.println("VITA-Link Gelang: GPS NEO-6M + ADXL345 + MAX30102 + MLX90614");
+  Serial.println("VITA-Link Gelang: GPS NEO-6M + ADXL345 + MAX30102 + MLX90614 + LoRa SX1276");
   Serial.println("Departemen Teknik Elektro & Komputer FTUI - Kelompok 16");
   Serial.println("=========================================================================");
-  Serial.println("STATUS DETEKSI SENSOR:");
+  Serial.println("STATUS DETEKSI SENSOR & KOMUNIKASI:");
   Serial.printf("  - Akselerometer ADXL345 : %s (Alamat: 0x53)\n",
                 adxl_detected ? "[OK] AKTIF" : "[WARN] BELUM TERDETEKSI");
   Serial.printf(
@@ -547,6 +713,9 @@ void setup() {
   Serial.printf(
       "  - GPS U-blox UART       : Mendengarkan di Pin %d (%ld bps)\n",
       gps_active_rx, gps_current_baud);
+  Serial.printf("  - LoRa SX1276 (SPI)     : %s (Frekuensi: %.1f MHz, Chip ID: 0x%02X)\n",
+                lora_detected ? "[OK] AKTIF (Pemancar Nirkabel Siap)" : "[INFO] NON-AKTIF / CEK KABEL SPI",
+                (double)(LORA_FREQUENCY / 1E6), lora_version);
   Serial.println("=========================================================================\n");
 }
 
@@ -554,7 +723,7 @@ void setup() {
 // 7. LOOP UTAMA
 // ==========================================
 void loop() {
-  // 1. Baca data UART dari modul GPS fisik secara kontinu
+  // 1. Baca data UART dari modul GPS fisik
   while (gpsSerial.available() > 0) {
     char c = gpsSerial.read();
     total_nmea_bytes++;
@@ -570,7 +739,7 @@ void loop() {
     }
   }
 
-  // 1b. Auto-Scan Pin & Baudrate GPS: Tukar pin & coba ragam baudrate jika belum ada NMEA valid
+  // 1b. Auto-Scan Pin & Baudrate GPS jika belum ada NMEA valid
   static unsigned long lastGpsSwapCheck = 0;
   if (valid_nmea_count == 0 && millis() - lastGpsSwapCheck >= 10000) {
     lastGpsSwapCheck = millis();
@@ -593,7 +762,7 @@ void loop() {
     Serial.printf("[GPS SCAN] Menguji Pin %d pada %ld bps...\n", gps_active_rx, gps_current_baud);
   }
 
-  // 1c. Hotplug I2C Probe: Pindai tiap 5 detik jika ada modul yang baru tersambung
+  // 1c. Hotplug I2C Probe: Pindai tiap 5 detik jika ada sensor yang baru tersambung
   static unsigned long lastI2cHotplug = 0;
   if ((!adxl_detected || !max_detected || !mlx_detected) && millis() - lastI2cHotplug >= 5000) {
     lastI2cHotplug = millis();
@@ -661,7 +830,7 @@ void loop() {
     lastSendTime = millis() - sendInterval;
   }
 
-  // 4. Input Perintah Serial (Suhu manual, simulasi jatuh, atau swap pin)
+  // 4. Input Perintah Serial (Suhu manual, simulasi jatuh, swap pin GPS)
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
@@ -747,9 +916,11 @@ void loop() {
     Serial.printf("  Status : %s\n", current_man_down ? "[ALERT] MAN-DOWN (JATUH)" : "[OK] Normal");
     Serial.printf("  Gerak  : %s (Total: %.2fg)\n",
                   adxl_detected ? "[OK] ADXL345 Aktif" : "[WARN] ADXL345 Belum Terpasang", total_accel_g);
+    Serial.printf("  LoRa   : %s (Paket Terkirim: %lu)\n",
+                  lora_detected ? "[OK] Pemancar Aktif (915 MHz)" : "[OFF] Non-Aktif", lora_packet_count);
     Serial.println("--------------------------------------------------");
 
-    // Format JSON untuk Serial Bridge -> Web GIS Dashboard
+    // Format JSON untuk Serial Bridge & Transmisi LoRa
     String payload =
         "{\"device_id\":\"BRACELET-01\"" +
         String(",\"name\":\"Korban Fisik (Hardware ESP32)\"") +
@@ -773,8 +944,23 @@ void loop() {
         String(",\"mlx90614_ok\":") + (mlx_detected ? "true" : "false") + 
         String(",\"finger\":") + (finger_detected ? "true" : "false") + 
         String(",\"accel_total\":") + String(total_accel_g, 2) + 
+        String(",\"lora_ok\":") + (lora_detected ? "true" : "false") + 
+        String(",\"lora_pkts\":") + String(lora_packet_count) + 
         "}";
 
+    // 1. Kirim via USB Serial ke serial_bridge.py
     Serial.println(payload);
+
+    // 2. Pancarkan ke udara via LoRa SX1276 jika modul terdeteksi
+    if (lora_detected) {
+      bool sent = loraSendPacket(payload);
+      if (sent) {
+        lora_packet_count++;
+        Serial.printf("[LORA TX #%lu] Paket terkirim ke udara via 915 MHz (%d bytes)\n",
+                      lora_packet_count, payload.length());
+      } else {
+        Serial.println("[LORA TX] Gagal memancarkan paket (Timeout)");
+      }
+    }
   }
 }

@@ -1,6 +1,5 @@
 # VITA-Link - Tactical Telemetry & Web GIS Backend Server
 # Kelompok 16 - Desain Proyek Teknik Komputer & Elektro FTUI
-# PIC: Ahmad Fariz Khairi (2306211370)
 
 import asyncio
 import csv
@@ -275,7 +274,6 @@ async def lifespan(app: FastAPI):
     print("  WebSocket Stream : ws://localhost:8000/ws/telemetry")
     print("  REST API Victims : http://localhost:8000/api/victims")
     print("  System Stats     : http://localhost:8000/api/stats")
-    print("  Export Data CSV  : http://localhost:8000/api/export/csv")
     print("  Hardware Ingest  : POST http://localhost:8000/api/telemetry")
     print("=" * 70 + "\n")
     yield
@@ -303,15 +301,24 @@ app.add_middleware(
 @app.get("/")
 async def get_index():
     """Menyajikan Frontend Tactical Command Center HTML"""
-    return FileResponse(os.path.join(DIR_PATH, "index.html"))
+    return FileResponse(
+        os.path.join(DIR_PATH, "index.html"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 @app.get("/analytics")
 async def get_analytics_page():
     """Menyajikan Halaman Tactical Analytics & Operational Intelligence"""
     analytics_path = os.path.join(DIR_PATH, "analytics.html")
     if os.path.exists(analytics_path):
-        return FileResponse(analytics_path)
-    return FileResponse(os.path.join(DIR_PATH, "index.html"))
+        return FileResponse(
+            analytics_path,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
+    return FileResponse(
+        os.path.join(DIR_PATH, "index.html"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 @app.get("/api/victims")
 async def get_victims():
@@ -373,6 +380,8 @@ async def process_telemetry_payload(payload: dict):
             victims_state[dev_id]["lng"] = saved_lng
         else:
             victims_state[dev_id].update(payload)
+        if "gateway_rssi" in payload:
+            victims_state[dev_id]["rssi"] = payload["gateway_rssi"]
         victims_state[dev_id]["is_hardware"] = True
         victims_state[dev_id]["last_seen"] = time.time()
 
@@ -539,36 +548,6 @@ async def get_dashboard_stats():
         "active_websocket_clients": len(manager.active_connections),
         "timestamp": datetime.now().isoformat()
     }
-
-@app.get("/api/export/csv")
-async def export_telemetry_csv():
-    """Mengekspor seluruh riwayat telemetri dari SQLite ke format CSV"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute(
-            """SELECT log_id, device_id, spo2, heart_rate, body_temperature, 
-                      is_man_down, rssi, snr, recorded_at 
-               FROM telemetry_logs 
-               ORDER BY log_id ASC"""
-        )
-        rows = cursor.fetchall()
-        conn.close()
-
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["Log ID", "Device ID", "SpO2 (%)", "BPM", "Suhu (C)", "Man-Down", "RSSI (dBm)", "SNR (dB)", "Timestamp"])
-        for r in rows:
-            writer.writerow(list(r))
-
-        csv_content = output.getvalue()
-        return Response(
-            content=csv_content,
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=vitalink_telemetry_{int(time.time())}.csv"}
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Gagal ekspor CSV: {e}")
 
 @app.post("/api/simulation/reset")
 async def reset_simulation():

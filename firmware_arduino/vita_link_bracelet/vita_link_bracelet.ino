@@ -24,11 +24,20 @@
  *                   SDA -> GPIO 21, SCL -> GPIO 22
  * 5. Tombol BOOT  : GPIO 0 (Tombol fisik built-in ESP32 untuk simulasi Man-Down / Darurat)
  * 6. Port USB     : GPIO 1 (TX0) & GPIO 3 (RX0) - Serial 115200 ke laptop / serial_bridge.py
+ * 7. LoRa SX1276  : VCC -> 3V3 (Wajib 3.3V!), GND -> GND
+ *                   SCK  -> GPIO 18 (SCK VSPI)
+ *                   MISO -> GPIO 19 (MISO VSPI)
+ *                   MOSI -> GPIO 23 (MOSI VSPI)
+ *                   NSS  -> GPIO 5  (CS / Chip Select)
+ *                   RST  -> GPIO 2  (Reset LoRa)
+ *                   DIO0 -> GPIO 4  (Interrupt LoRa)
+ *                   Frekuensi: 915 MHz (SDPPI Indonesia)
  */
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <Wire.h>
+#include <SPI.h>
 #include <math.h>
 #include <driver/gpio.h>
 
@@ -95,6 +104,158 @@ unsigned long manDownUntil = 0;
 // Timer Loop
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 2000; // Kirim tiap 2 detik ke Web GIS Dashboard
+
+// ==========================================
+// 1b. KONFIGURASI & DRIVER LORA SX1276/SX1278 (SPI)
+// Menggunakan Register Bare-Metal (Tanpa Eksternal Library)
+// Sesuai Skematik EasyEDA / KiCad Kelompok 16
+// ==========================================
+#define LORA_SCK_PIN   18  // VSPI SCK
+#define LORA_MISO_PIN  19  // VSPI MISO
+#define LORA_MOSI_PIN  23  // VSPI MOSI
+#define LORA_SS_PIN    5   // NSS / Chip Select (CS)
+#define LORA_RST_PIN   2   // Reset pin
+#define LORA_DIO0_PIN  4   // DIO0 interrupt
+#define LORA_FREQUENCY 915E6 // 915 MHz (Frekuensi Indonesia SDPPI)
+
+// Register Internal SX1276 LoRa
+#define LORA_REG_FIFO                 0x00
+#define LORA_REG_OP_MODE              0x01
+#define LORA_REG_FRF_MSB              0x06
+#define LORA_REG_FRF_MID              0x07
+#define LORA_REG_FRF_LSB              0x08
+#define LORA_REG_PA_CONFIG            0x09
+#define LORA_REG_FIFO_ADDR_PTR        0x0D
+#define LORA_REG_FIFO_TX_BASE_ADDR    0x0E
+#define LORA_REG_FIFO_RX_BASE_ADDR    0x0F
+#define LORA_REG_IRQ_FLAGS            0x12
+#define LORA_REG_MODEM_CONFIG_1       0x1D
+#define LORA_REG_MODEM_CONFIG_2       0x1E
+#define LORA_REG_PREAMBLE_MSB         0x20
+#define LORA_REG_PREAMBLE_LSB         0x21
+#define LORA_REG_PAYLOAD_LENGTH       0x22
+#define LORA_REG_MODEM_CONFIG_3       0x26
+#define LORA_REG_SYNC_WORD            0x39
+#define LORA_REG_DIO_MAPPING_1        0x40
+#define LORA_REG_VERSION              0x42
+
+// Mode Operasi SX1276
+#define LORA_MODE_LONG_RANGE          0x80
+#define LORA_MODE_SLEEP               0x00
+#define LORA_MODE_STDBY               0x01
+#define LORA_MODE_TX                  0x03
+
+bool lora_detected = false;
+uint8_t lora_version = 0;
+unsigned long lora_packet_count = 0;
+
+uint8_t loraReadRegister(uint8_t address) {
+  digitalWrite(LORA_SS_PIN, LOW);
+  SPI.transfer(address & 0x7F);
+  uint8_t val = SPI.transfer(0x00);
+  digitalWrite(LORA_SS_PIN, HIGH);
+  return val;
+}
+
+void loraWriteRegister(uint8_t address, uint8_t val) {
+  digitalWrite(LORA_SS_PIN, LOW);
+  SPI.transfer(address | 0x80);
+  SPI.transfer(val);
+  digitalWrite(LORA_SS_PIN, HIGH);
+}
+
+bool initLoRa() {
+  pinMode(LORA_SS_PIN, OUTPUT);
+  pinMode(LORA_RST_PIN, OUTPUT);
+  digitalWrite(LORA_SS_PIN, HIGH);
+
+  // Pulse Reset Hardware
+  digitalWrite(LORA_RST_PIN, LOW);
+  delay(10);
+  digitalWrite(LORA_RST_PIN, HIGH);
+  delay(10);
+
+  SPI.begin(LORA_SCK_PIN, LORA_MISO_PIN, LORA_MOSI_PIN, LORA_SS_PIN);
+
+  lora_version = loraReadRegister(LORA_REG_VERSION);
+  if (lora_version != 0x12) {
+    Serial.printf("[LORA] Perhatian: Chip ID terbaca 0x%02X (diharapkan 0x12). Modul LoRa belum terdeteksi.\n", lora_version);
+    Serial.println("  -> Pastikan kabel SPI: SCK=18, MISO=19, MOSI=23, NSS=5, RST=2, VCC=3.3V.");
+    lora_detected = false;
+    return false;
+  }
+
+  // Masuk Sleep Mode untuk mengaktifkan LoRa Mode (Bit 7 RegOpMode)
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_SLEEP);
+  delay(10);
+
+  // Set Frekuensi Transmisi (915 MHz)
+  uint64_t frf = ((uint64_t)LORA_FREQUENCY << 19) / 32000000;
+  loraWriteRegister(LORA_REG_FRF_MSB, (uint8_t)(frf >> 16));
+  loraWriteRegister(LORA_REG_FRF_MID, (uint8_t)(frf >> 8));
+  loraWriteRegister(LORA_REG_FRF_LSB, (uint8_t)(frf >> 0));
+
+  // Set Base Address FIFO TX & RX
+  loraWriteRegister(LORA_REG_FIFO_TX_BASE_ADDR, 0x00);
+  loraWriteRegister(LORA_REG_FIFO_RX_BASE_ADDR, 0x00);
+
+  // PA Config: PA_BOOST on, Daya pancar maksimal (~17 dBm)
+  loraWriteRegister(LORA_REG_PA_CONFIG, 0x8F);
+
+  // Modem Config 1: BW 125 kHz (0x70), CR 4/5 (0x02), Explicit Header (0x00) -> 0x72
+  loraWriteRegister(LORA_REG_MODEM_CONFIG_1, 0x72);
+
+  // Modem Config 2: Spreading Factor SF7 (0x70), CRC On (0x04) -> 0x74
+  loraWriteRegister(LORA_REG_MODEM_CONFIG_2, 0x74);
+
+  // Modem Config 3: LNA AGC Auto on (0x04)
+  loraWriteRegister(LORA_REG_MODEM_CONFIG_3, 0x04);
+
+  // Preamble Length (8 simbol)
+  loraWriteRegister(LORA_REG_PREAMBLE_MSB, 0x00);
+  loraWriteRegister(LORA_REG_PREAMBLE_LSB, 0x08);
+
+  // Sync Word standar LoRa (0x12)
+  loraWriteRegister(LORA_REG_SYNC_WORD, 0x12);
+
+  // Masuk ke Standby Mode
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+
+  lora_detected = true;
+  Serial.printf("[LORA] Inisialisasi SX1276 Sukses! Frekuensi: %.1f MHz (SF7, BW 125kHz, CR 4/5, SyncWord 0x12)\n", (double)(LORA_FREQUENCY / 1E6));
+  return true;
+}
+
+bool loraSendPacket(const String& payload) {
+  if (!lora_detected) return false;
+
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+  loraWriteRegister(LORA_REG_FIFO_ADDR_PTR, 0x00);
+
+  int len = payload.length();
+  for (int i = 0; i < len; i++) {
+    loraWriteRegister(LORA_REG_FIFO, (uint8_t)payload[i]);
+  }
+  loraWriteRegister(LORA_REG_PAYLOAD_LENGTH, len);
+
+  // Mode TX
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_TX);
+
+  // Tunggu TX Done (Bit 3 RegIrqFlags)
+  unsigned long start = millis();
+  while ((loraReadRegister(LORA_REG_IRQ_FLAGS) & 0x08) == 0) {
+    if (millis() - start > 400) {
+      loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+      return false; // Timeout
+    }
+    yield();
+  }
+
+  // Clear interrupt TX Done
+  loraWriteRegister(LORA_REG_IRQ_FLAGS, 0x08);
+  loraWriteRegister(LORA_REG_OP_MODE, LORA_MODE_LONG_RANGE | LORA_MODE_STDBY);
+  return true;
+}
 
 // ==========================================
 // 2. DRIVER SENSOR ADXL345 (AKSELEROMETER)
@@ -532,11 +693,15 @@ void setup() {
   }
 
   delay(1000);
+
+  // Inisialisasi Modul LoRa SX1276 (SPI)
+  initLoRa();
+
   Serial.println("\n=========================================================================");
-  Serial.println("VITA-Link Gelang: GPS NEO-6M + ADXL345 + MAX30102 + MLX90614");
+  Serial.println("VITA-Link Gelang: GPS NEO-6M + ADXL345 + MAX30102 + MLX90614 + LoRa SX1276");
   Serial.println("Departemen Teknik Elektro & Komputer FTUI - Kelompok 16");
   Serial.println("=========================================================================");
-  Serial.println("STATUS DETEKSI SENSOR:");
+  Serial.println("STATUS DETEKSI SENSOR & KOMUNIKASI:");
   Serial.printf("  - Akselerometer ADXL345 : %s (Alamat: 0x53)\n",
                 adxl_detected ? "[OK] AKTIF" : "[WARN] BELUM TERDETEKSI");
   Serial.printf(
@@ -548,6 +713,9 @@ void setup() {
   Serial.printf(
       "  - GPS U-blox UART       : Mendengarkan di Pin %d (%ld bps)\n",
       gps_active_rx, gps_current_baud);
+  Serial.printf("  - LoRa SX1276 (SPI)     : %s (Frekuensi: %.1f MHz, Chip ID: 0x%02X)\n",
+                lora_detected ? "[OK] AKTIF (Pemancar Nirkabel Siap)" : "[INFO] NON-AKTIF / CEK KABEL SPI",
+                (double)(LORA_FREQUENCY / 1E6), lora_version);
   Serial.println("=========================================================================\n");
 }
 
@@ -748,9 +916,11 @@ void loop() {
     Serial.printf("  Status : %s\n", current_man_down ? "[ALERT] MAN-DOWN (JATUH)" : "[OK] Normal");
     Serial.printf("  Gerak  : %s (Total: %.2fg)\n",
                   adxl_detected ? "[OK] ADXL345 Aktif" : "[WARN] ADXL345 Belum Terpasang", total_accel_g);
+    Serial.printf("  LoRa   : %s (Paket Terkirim: %lu)\n",
+                  lora_detected ? "[OK] Pemancar Aktif (915 MHz)" : "[OFF] Non-Aktif", lora_packet_count);
     Serial.println("--------------------------------------------------");
 
-    // Format JSON untuk Serial Bridge -> Web GIS Dashboard
+    // Format JSON untuk Serial Bridge & Transmisi LoRa
     String payload =
         "{\"device_id\":\"BRACELET-01\"" +
         String(",\"name\":\"Korban Fisik (Hardware ESP32)\"") +
@@ -774,8 +944,23 @@ void loop() {
         String(",\"mlx90614_ok\":") + (mlx_detected ? "true" : "false") + 
         String(",\"finger\":") + (finger_detected ? "true" : "false") + 
         String(",\"accel_total\":") + String(total_accel_g, 2) + 
+        String(",\"lora_ok\":") + (lora_detected ? "true" : "false") + 
+        String(",\"lora_pkts\":") + String(lora_packet_count) + 
         "}";
 
+    // 1. Kirim via USB Serial ke serial_bridge.py
     Serial.println(payload);
+
+    // 2. Pancarkan ke udara via LoRa SX1276 jika modul terdeteksi
+    if (lora_detected) {
+      bool sent = loraSendPacket(payload);
+      if (sent) {
+        lora_packet_count++;
+        Serial.printf("[LORA TX #%lu] Paket terkirim ke udara via 915 MHz (%d bytes)\n",
+                      lora_packet_count, payload.length());
+      } else {
+        Serial.println("[LORA TX] Gagal memancarkan paket (Timeout)");
+      }
+    }
   }
 }
