@@ -950,33 +950,7 @@
             background: var(--color-red-bg);
         }
 
-        /* Live ECG Canvas */
-        .ecg-card {
-            background: rgba(0, 0, 0, 0.6);
-            border: 1px solid rgba(56, 189, 248, 0.2);
-            border-radius: 8px;
-            padding: 10px 12px;
-            position: relative;
-        }
 
-        .ecg-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-            font-size: 0.72rem;
-            color: var(--color-primary);
-            font-weight: 700;
-            font-family: var(--font-mono);
-        }
-
-        #ecgCanvas {
-            width: 100%;
-            height: 60px;
-            display: block;
-            background: #020617;
-            border-radius: 4px;
-        }
 
         .btn-evac {
             padding: 11px 14px;
@@ -1716,72 +1690,7 @@
             }
         }
 
-        // Drawer detail & ECG
-        let ecgAnimId = null;
-        let ecgOffset = 0;
 
-        function startEcgAnimation(bpm) {
-            if (ecgAnimId) cancelAnimationFrame(ecgAnimId);
-            const canvas = document.getElementById('ecgCanvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-
-            const speed = (bpm > 0 ? bpm : 70) / 30;
-
-            function draw() {
-                if (!document.getElementById('ecgCanvas')) return;
-                ctx.fillStyle = '#020617';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                // Grid background
-                ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
-                ctx.lineWidth = 1;
-                for (let x = 0; x < canvas.width; x += 15) {
-                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-                }
-                for (let y = 0; y < canvas.height; y += 15) {
-                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-                }
-
-                // ECG Pulse Line
-                ctx.strokeStyle = bpm > 110 || bpm < 50 ? '#f87171' : '#38bdf8';
-                ctx.lineWidth = 2;
-                ctx.shadowColor = ctx.strokeStyle;
-                ctx.shadowBlur = 8;
-                ctx.beginPath();
-
-                const midY = canvas.height / 2;
-                const cycle = 120; // period
-
-                for (let x = 0; x < canvas.width; x++) {
-                    const pos = (x + ecgOffset) % cycle;
-                    let y = midY;
-
-                    if (bpm > 0) {
-                        if (pos > 30 && pos < 40) y = midY - 6; // P wave
-                        else if (pos >= 40 && pos < 45) y = midY;
-                        else if (pos >= 45 && pos < 50) y = midY + 8; // Q
-                        else if (pos >= 50 && pos < 55) y = midY - 24; // R peak!
-                        else if (pos >= 55 && pos < 60) y = midY + 12; // S
-                        else if (pos >= 60 && pos < 70) y = midY;
-                        else if (pos >= 70 && pos < 85) y = midY - 10; // T wave
-                    }
-
-                    if (x === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-
-                ecgOffset += speed;
-                ecgAnimId = requestAnimationFrame(draw);
-            }
-
-            draw();
-        }
 
         function openDrawer(id) {
             activeDrawerId = id;
@@ -1810,14 +1719,7 @@
                     <div style="margin-top:6px; font-size:0.8rem; font-weight:800; color:${colorMap[v.status]};">${v.statusText}</div>
                 </div>
 
-                <!-- Live ECG Canvas -->
-                <div class="ecg-card">
-                    <div class="ecg-header">
-                        <span>PULSE ECG MONITOR</span>
-                        <span>${v.bpm > 0 ? v.bpm + ' BPM' : 'STANDBY'}</span>
-                    </div>
-                    <canvas id="ecgCanvas"></canvas>
-                </div>
+
 
                 <div style="background:rgba(255,255,255,0.04); padding:14px; border-radius:10px;">
                     <div style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:var(--color-primary); margin-bottom:8px;">LOKASI GEOSPASIAL</div>
@@ -1869,8 +1771,6 @@
                     </div>
                 </div>
             `;
-
-            startEcgAnimation(v.bpm);
         }
 
         // API & protocol setup
@@ -1901,7 +1801,6 @@
 
         function closeDrawer() {
             activeDrawerId = null;
-            if (ecgAnimId) cancelAnimationFrame(ecgAnimId);
             document.getElementById('drawer-modal').classList.remove('active');
         }
 
