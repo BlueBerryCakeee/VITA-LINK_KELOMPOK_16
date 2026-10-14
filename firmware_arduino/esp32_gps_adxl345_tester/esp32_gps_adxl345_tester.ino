@@ -17,9 +17,7 @@
 #include <math.h>
 #include <driver/gpio.h>
 
-// ==========================================
-// 1. DEFINISI PIN & ALAMAT PERANGKAT
-// ==========================================
+// Pin & parameter sistem
 #define BOOT_BUTTON_PIN 0 // Tombol BOOT fisik ESP32
 
 // Pin UART2 GPS NEO-6M
@@ -81,9 +79,7 @@ unsigned long manDownUntil = 0;
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 2000; // Kirim tiap 2 detik ke Web GIS
 
-// ==========================================
-// 2. DRIVER SENSOR ADXL345 (AKSELEROMETER)
-// ==========================================
+// Driver ADXL345 (akselerometer)
 void initADXL345() {
   Wire.beginTransmission(ADXL345_I2C_ADDR);
   Wire.write(0x2D); // POWER_CTL
@@ -139,9 +135,7 @@ void readADXL345() {
   }
 }
 
-// ==========================================
-// 3. DRIVER SENSOR MAX30102 / MAX30100 (BPM & SpO2)
-// ==========================================
+// Driver MAX30102
 bool initMAXSensor() {
   Wire.beginTransmission(MAX_I2C_ADDR);
   if (Wire.endTransmission(true) != 0) {
@@ -356,9 +350,7 @@ void readMAXSensor() {
   }
 }
 
-// ==========================================
-// 4. DRIVER SENSOR SUHU MLX90614 (0x5A)
-// ==========================================
+// Driver MLX90614
 void readMLXSensor() {
   Wire.beginTransmission(MLX_I2C_ADDR);
   Wire.write(0x07); // Register RAM 0x07 = Object Temperature
@@ -377,9 +369,7 @@ void readMLXSensor() {
   }
 }
 
-// ==========================================
-// 5. DRIVER PARSER GPS U-BLOX NEO-6M
-// ==========================================
+// Parser NMEA GPS
 double nmeaToDecimalDegrees(String rawCoord, char dir) {
   if (rawCoord.length() < 4)
     return 0.0;
@@ -460,9 +450,7 @@ void processNmeaSentence(String sentence) {
   }
 }
 
-// ==========================================
-// 6. SETUP UTAMA
-// ==========================================
+
 void setup() {
   Serial.begin(115200);
 
@@ -530,28 +518,14 @@ void setup() {
   }
 
   delay(1000);
-  Serial.println("\n=========================================================================");
-  Serial.println("VITA-Link Gelang: GPS NEO-6M + ADXL345 + MAX30102 + MLX90614");
-  Serial.println("Departemen Teknik Elektro & Komputer FTUI - Kelompok 16");
-  Serial.println("=========================================================================");
-  Serial.println("STATUS DETEKSI SENSOR:");
-  Serial.printf("  - Akselerometer ADXL345 : %s (Alamat: 0x53)\n",
-                adxl_detected ? "[OK] AKTIF" : "[WARN] BELUM TERDETEKSI");
-  Serial.printf(
-      "  - Sensor BPM/SpO2 MAX   : %s (Alamat: 0x57, Part ID: 0x%02X)\n",
-      max_detected ? "[OK] AKTIF" : "[INFO] BELUM TERDETEKSI", max_part_id);
-  Serial.printf("  - Sensor Suhu MLX90614  : %s (Alamat: 0x5A)\n",
-                mlx_detected ? "[OK] AKTIF (Hardware)"
-                             : "[INFO] MODE SIMULASI / INPUT SERIAL");
-  Serial.printf(
-      "  - GPS U-blox UART       : Mendengarkan di Pin %d (%ld bps)\n",
-      gps_active_rx, gps_current_baud);
-  Serial.println("=========================================================================\n");
+  Serial.println("\n[SYSTEM] VITA-Link Tester Siap");
+  Serial.printf("  ADXL345 : %s (0x53)\n", adxl_detected ? "OK" : "Tidak terdeteksi");
+  Serial.printf("  MAX30102: %s (ID: 0x%02X)\n", max_detected ? "OK" : "Tidak terdeteksi", max_part_id);
+  Serial.printf("  MLX90614: %s (0x5A)\n", mlx_detected ? "OK" : "Simulasi");
+  Serial.printf("  GPS     : Pin %d (%ld bps)\n\n", gps_active_rx, gps_current_baud);
 }
 
-// ==========================================
-// 7. LOOP UTAMA
-// ==========================================
+
 void loop() {
   // 1. Baca data UART dari modul GPS fisik secara kontinu
   while (gpsSerial.available() > 0) {
@@ -707,8 +681,7 @@ void loop() {
   if (millis() - lastSendTime >= sendInterval) {
     lastSendTime = millis();
 
-    Serial.println("--------------------------------------------------");
-    Serial.println("[DATA TELEMETRI]");
+    Serial.println("[TELEMETRI]");
     if (max_detected && finger_detected) {
       if (current_bpm > 0) {
         Serial.printf("  SPO2   : %.1f %%\n", current_spo2);
@@ -746,7 +719,7 @@ void loop() {
     Serial.printf("  Status : %s\n", current_man_down ? "[ALERT] MAN-DOWN (JATUH)" : "[OK] Normal");
     Serial.printf("  Gerak  : %s (Total: %.2fg)\n",
                   adxl_detected ? "[OK] ADXL345 Aktif" : "[WARN] ADXL345 Belum Terpasang", total_accel_g);
-    Serial.println("--------------------------------------------------");
+
 
     // Format JSON untuk Serial Bridge -> Web GIS Dashboard
     String payload =

@@ -64,9 +64,7 @@
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-        /* ========================================================
-           SIDEBAR COMMAND PANEL
-           ======================================================== */
+        /* Sidebar */
         #sidebar {
             width: 480px;
             min-width: 450px;
@@ -294,9 +292,7 @@
             transition: width 0.4s ease;
         }
 
-        /* ========================================================
-           TRIAGE STATS SUMMARY CARDS
-           ======================================================== */
+        /* Triage summary cards */
         .status-summary {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -728,9 +724,7 @@
             font-family: var(--font-mono);
         }
 
-        /* ========================================================
-           MAP CONTAINER & FLOATING WIDGETS
-           ======================================================== */
+        /* Map container & widgets */
         #map-container {
             flex: 1;
             position: relative;
@@ -882,9 +876,7 @@
         }
         @keyframes radarRotate { 100% { transform: rotate(360deg); } }
 
-        /* ========================================================
-           PATIENT DETAIL SLIDE-OVER DRAWER
-           ======================================================== */
+        /* Drawer detail pasien */
         .drawer-overlay {
             position: fixed;
             inset: 0;
@@ -1201,9 +1193,7 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // ==========================================
-        // 1. JAM OPERASIONAL REALTIME
-        // ==========================================
+        // Jam operasional
         function updateClock() {
             const now = new Date();
             const hours = String(now.getHours()).padStart(2, '0');
@@ -1215,9 +1205,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // ==========================================
-        // 2. KOORDINAT POSKO BASE STATION & PETA
-        // ==========================================
+        // Peta & base station
         const BASE_STATION = {
             name: "Posko Induk SAR VITA-Link (Gateway LoRa)",
             lat: -6.3620,
@@ -1302,9 +1290,7 @@
             baseMarker.openPopup();
         }
 
-        // ==========================================
-        // 3. AUDIO SIRINE ALERT SYNTHESIZER
-        // ==========================================
+        // Audio sirine alert
         let audioAlarmEnabled = localStorage.getItem('vitalink_audio_alarm') !== 'false';
         let audioCtx = null;
         let lastEmergencyId = null;
@@ -1360,9 +1346,7 @@
             }
         }
 
-        // ==========================================
-        // 4. DATA STATE & TRIAGE LOGIC
-        // ==========================================
+        // Data state & triage logic
         const colorMap = { red: '#ef4444', yellow: '#f59e0b', green: '#10b981', black: '#64748b' };
         let victims = [];
         const markers = {};
@@ -1505,9 +1489,7 @@
             return { spo2Class, bpmClass, tempClass, spo2Text, bpmText, tempText, cautions };
         }
 
-        // ==========================================
-        // 5. RENDER DASHBOARD & INTERAKTIF PETA
-        // ==========================================
+        // Render dashboard & map
         function renderDashboard(flashDeviceId = null) {
             const listContainer = document.getElementById('victim-list');
             listContainer.innerHTML = '';
@@ -1734,9 +1716,7 @@
             }
         }
 
-        // ==========================================
-        // 6. DRAWER DETAIL PASIEN & LIVE ECG
-        // ==========================================
+        // Drawer detail & ECG
         let ecgAnimId = null;
         let ecgOffset = 0;
 
@@ -1893,9 +1873,7 @@
             startEcgAnimation(v.bpm);
         }
 
-        // ==========================================
-        // 7. API BASE & PROTOCOL RESOLUTION
-        // ==========================================
+        // API & protocol setup
         const API_BASE = (window.location.protocol === 'file:' || !window.location.host) 
             ? 'http://localhost:8000' 
             : `${window.location.protocol}//${window.location.host}`;
@@ -1945,9 +1923,7 @@
             }
         }
 
-        // ==========================================
-        // 8. QUICK SIMULATION ACTION BAR
-        // ==========================================
+        // Simulasi cepat
         async function quickSimulate(type) {
             let payload = {
                 device_id: "BRACELET-01",
@@ -1995,9 +1971,7 @@
             }
         }
 
-        // ==========================================
-        // 9. REAL-TIME REST & WEBSOCKET SYNC
-        // ==========================================
+        // Sync REST & WebSocket
         let isWsConnected = false;
         let pollingTimer = null;
 

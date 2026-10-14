@@ -1,24 +1,10 @@
 /*
- * Proyek: VITA-Link (Smart Monitoring Bracelet System)
- * Kelompok: 16 - Desain Proyek Teknik Komputer & Elektro FTUI
- * Firmware: Gateway Base Station LoRa Receiver (Posko SAR)
- * Kompatibel dengan: Arduino IDE & PlatformIO
+ * VITA-Link Gateway LoRa Receiver (Posko Base Station)
+ * Kelompok 16 - Desain Proyek FTUI
  *
- * FUNGSI:
- * - Menerima paket telemetri dari Gelang VITA-Link di udara (915 MHz LoRa)
- * - Menambahkan metrik RSSI (dBm) & SNR (dB)
- * - Meneruskan payload JSON ke USB Serial (115200 baud) untuk dibaca serial_bridge.py
- *
- * WIRING PIN ESP32 -> LORA SX1276 / SX1278 (SPI):
- * - VCC  -> 3V3 (Wajib 3.3V, JANGAN 5V!)
- * - GND  -> GND
- * - SCK  -> GPIO 18 (VSPI SCK)
- * - MISO -> GPIO 19 (VSPI MISO)
- * - MOSI -> GPIO 23 (VSPI MOSI)
- * - NSS  -> GPIO 5  (CS / Chip Select)
- * - RST  -> GPIO 2  (Reset LoRa)
- * - DIO0 -> GPIO 4  (Interrupt LoRa)
- * - ANT  -> Antena LoRa 915 MHz (atau 433 MHz)
+ * Pinout SPI SX1276:
+ * SCK: 18, MISO: 19, MOSI: 23, NSS: 5, RST: 2, DIO0: 4
+ * Frekuensi: 915 MHz
  */
 
 #include <Arduino.h>
@@ -136,10 +122,7 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  Serial.println("\n========================================================");
-  Serial.println("  VITA-Link Gateway Receiver LoRa (Posko Base Station)");
-  Serial.println("  Kelompok 16 - Desain Proyek FTUI");
-  Serial.println("========================================================");
+  Serial.println("\n[GATEWAY] VITA-Link LoRa Receiver Posko SAR Siap");
 
   lora_ok = initLoRaReceiver();
   if (!lora_ok) {

@@ -1,37 +1,13 @@
 /*
- * Proyek: VITA-Link (Smart Monitoring Bracelet System)
- * Kelompok: 16 - Desain Proyek Teknik Komputer & Elektro FTUI
- * Firmware Node Gelang: ESP32 + NEO-6M + ADXL345 + MAX30102 + MLX90614
- * Kompatibel dengan: Arduino IDE & PlatformIO
+ * VITA-Link Gelang Pemantau Medis Korban Bencana
+ * Kelompok 16 - Desain Proyek Elektro & Komputer FTUI
  *
- * PANDUAN PENGGUNAAN ARDUINO IDE:
- * 1. Board: "ESP32 Dev Module" (dari board manager esp32 by Espressif Systems)
- * 2. Port: Pilih port COM ESP32 Anda
- * 3. Serial Monitor: Baudrate 115200 bps
- * 4. TIDAK PERLU install library eksternal (driver sensor ditulis bare-metal I2C register Wire.h)
- *
- * KONFIGURASI WIRING PIN HARDWARE:
- * 1. GPS NEO-6M   : VCC -> VIN (5V) / 3V3, GND -> GND
- *                   TX GPS -> GPIO 16 (RX2 ESP32)
- *                   RX GPS -> GPIO 17 (TX2 ESP32)
- * 2. ADXL345      : VCC -> 3V3, GND -> GND
- *                   CS -> 3V3 (Wajib agar aktif mode I2C)
- *                   SDO -> GND (Menetapkan alamat I2C ke 0x53)
- *                   SDA -> GPIO 21, SCL -> GPIO 22
- * 3. MAX30102     : VIN -> 3V3 atau 5V, GND -> GND
- *                   SDA -> GPIO 21, SCL -> GPIO 22, INT -> Tidak terhubung (NC)
- * 4. MLX90614     : VIN -> 3V3, GND -> GND
- *                   SDA -> GPIO 21, SCL -> GPIO 22
- * 5. Tombol BOOT  : GPIO 0 (Tombol fisik built-in ESP32 untuk simulasi Man-Down / Darurat)
- * 6. Port USB     : GPIO 1 (TX0) & GPIO 3 (RX0) - Serial 115200 ke laptop / serial_bridge.py
- * 7. LoRa SX1276  : VCC -> 3V3 (Wajib 3.3V!), GND -> GND
- *                   SCK  -> GPIO 18 (SCK VSPI)
- *                   MISO -> GPIO 19 (MISO VSPI)
- *                   MOSI -> GPIO 23 (MOSI VSPI)
- *                   NSS  -> GPIO 5  (CS / Chip Select)
- *                   RST  -> GPIO 2  (Reset LoRa)
- *                   DIO0 -> GPIO 4  (Interrupt LoRa)
- *                   Frekuensi: 915 MHz (SDPPI Indonesia)
+ * Konfigurasi hardware:
+ * - ESP32 Dev Module
+ * - GPS NEO-6M (Pin RX: 16, TX: 17)
+ * - I2C Sensor Bus (SDA: 21, SCL: 22): ADXL345, MAX30102, MLX90614
+ * - LoRa SX1276 SPI (SCK: 18, MISO: 19, MOSI: 23, NSS: 5, RST: 2, DIO0: 4)
+ * - Frekuensi LoRa: 915 MHz (SDPPI)
  */
 
 #include <Arduino.h>
@@ -41,9 +17,7 @@
 #include <math.h>
 #include <driver/gpio.h>
 
-// ==========================================
-// 1. DEFINISI PIN & ALAMAT PERANGKAT
-// ==========================================
+// Pin & parameter sistem
 #define BOOT_BUTTON_PIN 0 // Tombol BOOT fisik ESP32
 
 // Pin UART2 GPS NEO-6M
@@ -105,11 +79,7 @@ unsigned long manDownUntil = 0;
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 2000; // Kirim tiap 2 detik ke Web GIS Dashboard
 
-// ==========================================
-// 1b. KONFIGURASI & DRIVER LORA SX1276/SX1278 (SPI)
-// Menggunakan Register Bare-Metal (Tanpa Eksternal Library)
-// Sesuai Skematik EasyEDA / KiCad Kelompok 16
-// ==========================================
+// Driver SPI LoRa SX1276
 #define LORA_SCK_PIN   18  // VSPI SCK
 #define LORA_MISO_PIN  19  // VSPI MISO
 #define LORA_MOSI_PIN  23  // VSPI MOSI
@@ -257,9 +227,7 @@ bool loraSendPacket(const String& payload) {
   return true;
 }
 
-// ==========================================
-// 2. DRIVER SENSOR ADXL345 (AKSELEROMETER)
-// ==========================================
+// Driver ADXL345 (akselerometer)
 void initADXL345() {
   Wire.beginTransmission(ADXL345_I2C_ADDR);
   Wire.write(0x2D); // POWER_CTL
@@ -314,9 +282,7 @@ void readADXL345() {
   }
 }
 
-// ==========================================
-// 3. DRIVER SENSOR MAX30102 / MAX30100 (BPM & SpO2)
-// ==========================================
+// Driver MAX30102 (pulse oximeter & heart rate)
 bool initMAXSensor() {
   Wire.beginTransmission(MAX_I2C_ADDR);
   if (Wire.endTransmission(true) != 0) {
@@ -520,9 +486,7 @@ void readMAXSensor() {
   }
 }
 
-// ==========================================
-// 4. DRIVER SENSOR SUHU MLX90614 (0x5A)
-// ==========================================
+// Driver MLX90614 (suhu non-kontak)
 void readMLXSensor() {
   Wire.beginTransmission(MLX_I2C_ADDR);
   Wire.write(0x07); // Register RAM 0x07 = Object Temperature
@@ -541,9 +505,7 @@ void readMLXSensor() {
   }
 }
 
-// ==========================================
-// 5. DRIVER PARSER GPS U-BLOX NEO-6M
-// ==========================================
+// Parser NMEA GPS
 double nmeaToDecimalDegrees(String rawCoord, char dir) {
   if (rawCoord.length() < 4)
     return 0.0;
@@ -624,9 +586,7 @@ void processNmeaSentence(String sentence) {
   }
 }
 
-// ==========================================
-// 6. SETUP UTAMA
-// ==========================================
+
 void setup() {
   Serial.begin(115200);
 
@@ -697,31 +657,17 @@ void setup() {
   // Inisialisasi Modul LoRa SX1276 (SPI)
   initLoRa();
 
-  Serial.println("\n=========================================================================");
-  Serial.println("VITA-Link Gelang: GPS NEO-6M + ADXL345 + MAX30102 + MLX90614 + LoRa SX1276");
-  Serial.println("Departemen Teknik Elektro & Komputer FTUI - Kelompok 16");
-  Serial.println("=========================================================================");
-  Serial.println("STATUS DETEKSI SENSOR & KOMUNIKASI:");
-  Serial.printf("  - Akselerometer ADXL345 : %s (Alamat: 0x53)\n",
-                adxl_detected ? "[OK] AKTIF" : "[WARN] BELUM TERDETEKSI");
-  Serial.printf(
-      "  - Sensor BPM/SpO2 MAX   : %s (Alamat: 0x57, Part ID: 0x%02X)\n",
-      max_detected ? "[OK] AKTIF" : "[INFO] BELUM TERDETEKSI", max_part_id);
-  Serial.printf("  - Sensor Suhu MLX90614  : %s (Alamat: 0x5A)\n",
-                mlx_detected ? "[OK] AKTIF (Hardware)"
-                             : "[INFO] MODE SIMULASI / INPUT SERIAL");
-  Serial.printf(
-      "  - GPS U-blox UART       : Mendengarkan di Pin %d (%ld bps)\n",
-      gps_active_rx, gps_current_baud);
-  Serial.printf("  - LoRa SX1276 (SPI)     : %s (Frekuensi: %.1f MHz, Chip ID: 0x%02X)\n",
-                lora_detected ? "[OK] AKTIF (Pemancar Nirkabel Siap)" : "[INFO] NON-AKTIF / CEK KABEL SPI",
+  Serial.println("\n[SYSTEM] VITA-Link Gelang Siap");
+  Serial.printf("  ADXL345 : %s (0x53)\n", adxl_detected ? "OK" : "Tidak terdeteksi");
+  Serial.printf("  MAX30102: %s (ID: 0x%02X)\n", max_detected ? "OK" : "Tidak terdeteksi", max_part_id);
+  Serial.printf("  MLX90614: %s (0x5A)\n", mlx_detected ? "OK" : "Simulasi");
+  Serial.printf("  GPS     : Pin %d (%ld bps)\n", gps_active_rx, gps_current_baud);
+  Serial.printf("  LoRa    : %s (%.1f MHz, ID: 0x%02X)\n\n",
+                lora_detected ? "OK" : "Tidak terdeteksi",
                 (double)(LORA_FREQUENCY / 1E6), lora_version);
-  Serial.println("=========================================================================\n");
 }
 
-// ==========================================
-// 7. LOOP UTAMA
-// ==========================================
+
 void loop() {
   // 1. Baca data UART dari modul GPS fisik
   while (gpsSerial.available() > 0) {
@@ -877,8 +823,7 @@ void loop() {
   if (millis() - lastSendTime >= sendInterval) {
     lastSendTime = millis();
 
-    Serial.println("--------------------------------------------------");
-    Serial.println("[DATA TELEMETRI]");
+    Serial.println("[TELEMETRI]");
     if (max_detected && finger_detected) {
       if (current_bpm > 0) {
         Serial.printf("  SPO2   : %.1f %%\n", current_spo2);
@@ -918,7 +863,7 @@ void loop() {
                   adxl_detected ? "[OK] ADXL345 Aktif" : "[WARN] ADXL345 Belum Terpasang", total_accel_g);
     Serial.printf("  LoRa   : %s (Paket Terkirim: %lu)\n",
                   lora_detected ? "[OK] Pemancar Aktif (915 MHz)" : "[OFF] Non-Aktif", lora_packet_count);
-    Serial.println("--------------------------------------------------");
+
 
     // Format JSON untuk Serial Bridge & Transmisi LoRa
     String payload =

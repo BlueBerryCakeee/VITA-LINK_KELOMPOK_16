@@ -24,9 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 import uvicorn
 
-# ==========================================================
-# 1. KONFIGURASI DATABASE & PATH
-# ==========================================================
+# Database & path config
 DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(DIR_PATH, "vitalink.db")
 SCHEMA_FILE = os.path.join(DIR_PATH, "schema.sql")
@@ -51,9 +49,7 @@ def init_db():
 
 init_db()
 
-# ==========================================================
-# 2. STATE MASTER TELEMETRI KORBAN (IN-MEMORY CACHE)
-# ==========================================================
+# State data korban (in-memory)
 victims_state: Dict[str, dict] = {
     "BRACELET-01": {
         "id": "BRACELET-01",
@@ -129,9 +125,7 @@ victims_state: Dict[str, dict] = {
     }
 }
 
-# ==========================================================
-# 3. WEBSOCKET BROADCAST MANAGER
-# ==========================================================
+# WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -155,9 +149,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# ==========================================================
-# 4. ALGORITMA KLASIFIKASI TRIAGE & SIMPAN LOG DATABASE
-# ==========================================================
+# Klasifikasi triage & logging database
 def compute_triage(spo2, bpm, temp, man_down, is_hardware=False, max_ok=True, finger=True):
     if man_down:
         return "red", "MERAH - Kritis (Jatuh / Man-Down)"
@@ -211,9 +203,7 @@ def record_triage_event(dev_id, color, reason, ews_score=0):
     except Exception as e:
         print(f"[TRIAGE EVENT ERROR] {e}")
 
-# ==========================================================
-# 5. SIMULASI BACKGROUND STREAMING
-# ==========================================================
+# Simulasi background telemetri
 async def telemetry_stream_loop():
     while True:
         await asyncio.sleep(2.5)
@@ -260,22 +250,11 @@ async def telemetry_stream_loop():
         }
         await manager.broadcast(packet)
 
-# ==========================================================
-# 6. LIFESPAN FASTAPI
-# ==========================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(telemetry_stream_loop())
-    print("\n" + "=" * 70)
-    print("  VITA-Link Tactical Telemetry & GIS Server")
-    print("  Kelompok 16 - Desain Proyek FTUI")
-    print("=" * 70)
-    print("  Dashboard UI     : http://localhost:8000")
-    print("  WebSocket Stream : ws://localhost:8000/ws/telemetry")
-    print("  REST API Victims : http://localhost:8000/api/victims")
-    print("  System Stats     : http://localhost:8000/api/stats")
-    print("  Hardware Ingest  : POST http://localhost:8000/api/telemetry")
-    print("=" * 70 + "\n")
+    print("\n[SERVER] VITA-Link Backend running on http://localhost:8000")
+    print("[SERVER] WebSocket stream active on ws://localhost:8000/ws/telemetry\n")
     yield
     task.cancel()
 
@@ -294,9 +273,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==========================================================
-# 7. ROUTE REST API LENGKAP
-# ==========================================================
+# Routes
 
 @app.get("/")
 async def get_index():
@@ -569,9 +546,7 @@ async def reset_simulation():
     })
     return {"status": "success", "message": "Simulation reset successfully"}
 
-# ==========================================================
-# 8. WEBSOCKET REALTIME STREAMING
-# ==========================================================
+# WebSocket endpoint
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
@@ -593,9 +568,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# ==========================================================
-# 9. MAIN RUNNER DENGAN AUTO PORT DETECTION
-# ==========================================================
+
 if __name__ == "__main__":
     import argparse
     import socket

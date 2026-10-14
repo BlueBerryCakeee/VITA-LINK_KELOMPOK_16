@@ -1,8 +1,6 @@
--- ==========================================================
--- PROYEK: VITA-Link (Smart Monitoring Bracelet System)
--- MODUL: Skema Database Telemetri Medis & Log Triage Posko
--- PIC: Ahmad Fariz Khairi (2306211370) - Bidang Software / Data
--- ==========================================================
+-- Skema database VITA-Link
+-- Kelompok 16 Despro FTUI (Ahmad Fariz Khairi - 2306211370)
+
 
 -- 1. Tabel Master Pasien / Korban Bencana
 CREATE TABLE IF NOT EXISTS patients (

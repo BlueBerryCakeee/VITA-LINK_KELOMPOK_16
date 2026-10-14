@@ -15,10 +15,10 @@ DEFAULT_SERVER_URL = "http://localhost:8000/api/telemetry/inject"
 
 def list_available_ports():
     ports = serial.tools.list_ports.comports()
-    print("\n=== DAFTAR PORT SERIAL TERDETEKSI ===")
+    print("\n[INFO] Daftar port serial:")
     for p in ports:
-        print(f"  • {p.device:<8} : {p.description}")
-    print("=====================================\n")
+        print(f"  {p.device:<8} : {p.description}")
+    print()
     return ports
 
 def auto_detect_esp32_port(preferred_port=None):
@@ -91,18 +91,10 @@ def run_serial_bridge(port_name="auto", baud_rate=115200, server_url=None):
     if not inject_url.endswith("/api/telemetry/inject"):
         inject_url = inject_url.rstrip("/") + "/api/telemetry/inject"
 
-    print("\n========================================================")
-    print(f"VITA-Link Serial Bridge Gateway")
-    print(f"Target Port  : {target_port} (Baudrate: {baud_rate})")
-    print(f"Target Server: {inject_url}")
-    print("========================================================")
-    print("Petunjuk Kontrol:")
-    print("  - Tombol BOOT di ESP32 : Memicu alarm Man-Down (Jatuh)")
-    print("  - Ketik 'jatuh' / 'm'  : Simulasi Man-Down")
-    print("  - Ketik 'swap' / 'pin' : Alihkan pin UART GPS")
-    print("  - Ketik 'baud'         : Ganti baudrate GPS (9600/38400/115200/4800)")
-    print("  - Ketik angka suhu     : Ubah suhu tubuh (misal: 38.5)")
-    print("========================================================\n", flush=True)
+    print(f"\n[BRIDGE] VITA-Link Serial Bridge")
+    print(f"Port  : {target_port} ({baud_rate} baud)")
+    print(f"Server: {inject_url}")
+    print("Kontrol: 'jatuh' (alarm), 'swap' (pin GPS), 'baud' (baudrate), angka (suhu)\n", flush=True)
 
     while True:
         ser = None
@@ -198,16 +190,7 @@ def run_serial_bridge(port_name="auto", baud_rate=115200, server_url=None):
                         except Exception as err:
                             web_status = f"[ERROR] {err}"
 
-                        # Tampilkan telemetri dalam format baris vertikal yang rapi
-                        print("--------------------------------------------------")
-                        print("[DATA TELEMETRI]")
-                        print(f"  SPO2   : {spo2_str}")
-                        print(f"  BPM    : {bpm_str}")
-                        print(f"  Suhu   : {temp_str}")
-                        print(f"  GPS    : {gps_str}")
-                        print(f"  Status : {status_str}")
-                        print(f"  Server : {web_status}")
-                        print("--------------------------------------------------\n", flush=True)
+                        print(f"[DATA] SpO2: {spo2_str} | BPM: {bpm_str} | Suhu: {temp_str} | GPS: {gps_str} | Status: {status_str} | {web_status}", flush=True)
                     else:
                         print(f"[RAW] {raw}")
                 time.sleep(0.02)

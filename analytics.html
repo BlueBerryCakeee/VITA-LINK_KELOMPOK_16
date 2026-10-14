@@ -662,9 +662,7 @@
     </main>
 
     <script>
-        // ==========================================
-        // 1. CLOCK REALTIME
-        // ==========================================
+        // Jam operasional
         function updateClock() {
             const now = new Date();
             const h = String(now.getHours()).padStart(2, '0');
@@ -675,9 +673,7 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // ==========================================
-        // 2. INISIALISASI GRAFIK CHART.JS (DARK MODE)
-        // ==========================================
+        // Inisialisasi Chart.js
         Chart.defaults.color = '#94a3b8';
         Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.08)';
         Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
@@ -791,9 +787,7 @@
             }
         });
 
-        // ==========================================
-        // 3. API BASE & PROTOCOL RESOLUTION
-        // ==========================================
+        // API setup
         const API_BASE = (window.location.protocol === 'file:' || !window.location.host) 
             ? 'http://localhost:8000' 
             : `${window.location.protocol}//${window.location.host}`;
@@ -895,9 +889,7 @@
             }
         }
 
-        // ==========================================
-        // 4. WEBSOCKET REALTIME STREAMING SYNC
-        // ==========================================
+        // WebSocket streaming
         function setupWebSocket() {
             const statusBadge = document.getElementById('conn-status');
             const wsUrl = `${WS_BASE}/ws/telemetry`;
